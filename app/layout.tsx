@@ -1,33 +1,28 @@
 import type React from "react"
 import type { Metadata } from "next"
-import { Comic_Neue, Albert_Sans } from "next/font/google"
-import { Analytics } from "@vercel/analytics/next"
-import { Suspense } from "react"
+import { Geist, Geist_Mono } from "next/font/google"
+import { CartProvider } from "@/lib/cart-context"
 import "./globals.css"
 
+const geistSans = Geist({ subsets: ["latin"] })
+const geistMono = Geist_Mono({ subsets: ["latin"] })
+
 export const metadata: Metadata = {
-  title: "CANNED IT",
-  description: "Canned food catalogue and offers",
-  generator: "v0.app",
+  title: "Canned It — Khusus Kaleng",
+  description: "Platform e-commerce khusus produk kaleng berkualitas",
 }
 
-const comic = Comic_Neue({
-  subsets: ["latin"],
-  weight: ["400", "700"],
-  variable: "--font-comic-neue",
-})
-const albert = Albert_Sans({
-  subsets: ["latin"],
-  weight: ["400", "600", "900"],
-  variable: "--font-albert-sans",
-})
-
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
   return (
-    <html lang="id" className={`${comic.variable} ${albert.variable} antialiased`}>
-      <body className="font-sans bg-background text-foreground">
-        <Suspense fallback={null}>{children}</Suspense>
-        <Analytics />
+    <html lang="id">
+      <body className={`${geistSans.className} antialiased bg-gradient-to-br from-[#fff5f5] via-[#ffe0cc] to-[#ffc6a3]`}>
+        <CartProvider>
+          {children}
+        </CartProvider>
       </body>
     </html>
   )
