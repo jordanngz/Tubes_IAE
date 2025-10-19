@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, use } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import Navbar from "@/components/navbar"
@@ -12,17 +12,41 @@ import { Button } from "@/components/ui/button"
 export default function ProductDetailPage({
   params,
 }: {
-  params: Promise<{ id: string }>
+  params: { id: string }
 }) {
-  const resolvedParams = use(params)
   const router = useRouter()
-  const { addToCart } = useCart()
+  const { addToCart, addToWishlist, removeFromWishlist, isInWishlist } = useCart()
 
-  const product = products.find((p) => p.id === resolvedParams.id)
+  const product = products.find((p) => p.id === params.id)
 
   const [quantity, setQuantity] = useState(1)
   const [selectedVariants, setSelectedVariants] = useState<Record<string, string>>({})
   const [showSuccess, setShowSuccess] = useState(false)
+  const [isWishlisted, setIsWishlisted] = useState(false)
+
+  useEffect(() => {
+    if (product) {
+      setIsWishlisted(isInWishlist(product.id))
+    }
+  }, [product, isInWishlist])
+
+  const handleAddToCart = () => {
+    if (!product) return
+    addToCart(product, quantity, selectedVariants)
+    setShowSuccess(true)
+    setTimeout(() => setShowSuccess(false), 3000)
+  }
+
+  const handleToggleWishlist = () => {
+    if (!product) return
+    if (isWishlisted) {
+      removeFromWishlist(product.id)
+      setIsWishlisted(false)
+    } else {
+      addToWishlist(product)
+      setIsWishlisted(true)
+    }
+  }
 
   if (!product) {
     return (
@@ -36,12 +60,6 @@ export default function ProductDetailPage({
         </div>
       </main>
     )
-  }
-
-  const handleAddToCart = () => {
-    addToCart(product, quantity, selectedVariants)
-    setShowSuccess(true)
-    setTimeout(() => setShowSuccess(false), 3000)
   }
 
   return (
@@ -63,6 +81,16 @@ export default function ProductDetailPage({
       )}
 
       <div className="relative z-10 container mx-auto px-4 py-8">
+        <button
+          onClick={() => router.back()}
+          className="mb-6 flex items-center gap-2 text-gray-700 hover:text-red-600 transition-colors animate-fade-in-up"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+          <span className="font-semibold">Kembali</span>
+        </button>
+
         <div className="grid lg:grid-cols-2 gap-8 max-w-6xl mx-auto">
           {/* Product Image */}
           <div className="animate-fade-in-up">
@@ -161,10 +189,15 @@ export default function ProductDetailPage({
                   <ShoppingCart className="w-5 h-5 mr-2" />+ Keranjang
                 </Button>
                 <Button
+                  onClick={handleToggleWishlist}
                   variant="outline"
-                  className="px-6 py-6 border-2 border-red-500 text-red-600 hover:bg-red-50 bg-transparent"
+                  className={`px-6 py-6 border-2 transition-all ${
+                    isWishlisted
+                      ? "border-red-500 bg-red-50 text-red-600"
+                      : "border-red-500 text-red-600 hover:bg-red-50 bg-transparent"
+                  }`}
                 >
-                  <Heart className="w-5 h-5" />
+                  <Heart className={`w-5 h-5 ${isWishlisted ? "fill-red-600" : ""}`} />
                 </Button>
                 <Button
                   variant="outline"

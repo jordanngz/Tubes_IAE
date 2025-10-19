@@ -1,7 +1,10 @@
 "use client"
 
+import type React from "react"
+
 import { useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import ProfileMenu from "./profile-menu"
 import { useCart } from "@/lib/cart-context"
 import CartModal from "./cart-modal"
@@ -9,7 +12,16 @@ import CartModal from "./cart-modal"
 export default function Navbar() {
   const [searchQuery, setSearchQuery] = useState("")
   const [isCartOpen, setIsCartOpen] = useState(false)
+  const [isCartHovered, setIsCartHovered] = useState(false)
   const { totalItems } = useCart()
+  const router = useRouter()
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (searchQuery.trim()) {
+      router.push(`/menu?search=${encodeURIComponent(searchQuery.trim())}`)
+    }
+  }
 
   const navItems = [
     { label: "HOME", href: "/" },
@@ -40,7 +52,7 @@ export default function Navbar() {
               ))}
             </nav>
 
-            <form className="hidden md:flex flex-1 relative max-w-md mx-4 animate-fade-in">
+            <form onSubmit={handleSearch} className="hidden md:flex flex-1 relative max-w-md mx-4 animate-fade-in">
               <svg
                 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-700 transition-transform duration-300 peer-focus:scale-110"
                 fill="none"
@@ -73,22 +85,34 @@ export default function Navbar() {
                   />
                 </svg>
               </button>
-              <button
-                onClick={() => setIsCartOpen(true)}
-                className="relative w-10 h-10 rounded-full bg-gradient-to-br from-orange-300 to-orange-400 border-2 border-orange-500 flex items-center justify-center hover:shadow-xl transition-all duration-300 hover:scale-110 hover:-translate-y-1 active:scale-95"
-                aria-label="Keranjang"
+              <div
+                className="relative"
+                onMouseEnter={() => setIsCartHovered(true)}
+                onMouseLeave={() => setIsCartHovered(false)}
               >
-                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <circle cx="9" cy="21" r="1" />
-                  <circle cx="20" cy="21" r="1" />
-                  <path d="M1 1h4l2.68 12.39a2 2 0 0 0 2 1.61h7.72a2 2 0 0 0 2-1.61L21 6H6" />
-                </svg>
-                {totalItems > 0 && (
-                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-600 text-white text-xs font-bold rounded-full flex items-center justify-center animate-pulse">
-                    {totalItems}
-                  </span>
+                <Link href="/cart">
+                  <button
+                    className="relative w-10 h-10 rounded-full bg-gradient-to-br from-orange-300 to-orange-400 border-2 border-orange-500 flex items-center justify-center hover:shadow-xl transition-all duration-300 hover:scale-110 hover:-translate-y-1 active:scale-95"
+                    aria-label="Keranjang"
+                  >
+                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <circle cx="9" cy="21" r="1" />
+                      <circle cx="20" cy="21" r="1" />
+                      <path d="M1 1h4l2.68 12.39a2 2 0 0 0 2 1.61h7.72a2 2 0 0 0 2-1.61L21 6H6" />
+                    </svg>
+                    {totalItems > 0 && (
+                      <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-600 text-white text-xs font-bold rounded-full flex items-center justify-center animate-pulse">
+                        {totalItems}
+                      </span>
+                    )}
+                  </button>
+                </Link>
+                {isCartHovered && totalItems > 0 && (
+                  <div className="absolute right-0 top-full mt-2 w-80 bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-orange-200 p-4 animate-fade-in-down z-50">
+                    <CartModal isOpen={false} onClose={() => {}} isPreview={true} />
+                  </div>
                 )}
-              </button>
+              </div>
               <ProfileMenu />
             </div>
           </div>

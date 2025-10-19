@@ -1,17 +1,48 @@
 "use client"
 
+import type React from "react"
+
 import { useState } from "react"
+import { useSearchParams } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
 import Navbar from "@/components/navbar"
 import { products, categories } from "@/lib/products-data"
-import { Star } from "lucide-react"
+import { Star, Heart, ShoppingCart } from "lucide-react"
+import { useCart } from "@/lib/cart-context"
 
 export default function MenuPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>("all")
+  const searchParams = useSearchParams()
+  const searchQuery = searchParams.get("search") || ""
 
-  const filteredProducts =
-    selectedCategory === "all" ? products : products.filter((p) => p.category === selectedCategory)
+  const { addToWishlist, removeFromWishlist, isInWishlist, addToCart } = useCart()
+
+  const filteredProducts = products.filter((product) => {
+    const matchesCategory = selectedCategory === "all" || product.category === selectedCategory
+    const matchesSearch =
+      searchQuery === "" ||
+      product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      product.description.toLowerCase().includes(searchQuery.toLowerCase())
+    return matchesCategory && matchesSearch
+  })
+
+  const handleToggleWishlist = (e: React.MouseEvent, product: any) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (isInWishlist(product.id)) {
+      removeFromWishlist(product.id)
+    } else {
+      addToWishlist(product)
+    }
+  }
+
+  const handleQuickAddToCart = (e: React.MouseEvent, product: any) => {
+    e.preventDefault()
+    e.stopPropagation()
+    addToCart(product, 1, {})
+    alert("Produk ditambahkan ke keranjang!")
+  }
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-orange-50 via-red-50 to-orange-100 animate-gradient relative overflow-hidden">
@@ -30,7 +61,13 @@ export default function MenuPage() {
           <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-3">
             Menu <span className="text-red-600">Canned It</span>
           </h1>
-          <p className="text-gray-700 text-lg">Temukan berbagai produk kaleng berkualitas pilihan Anda</p>
+          {searchQuery ? (
+            <p className="text-gray-700 text-lg">
+              Hasil pencarian untuk: <span className="font-bold text-red-600">"{searchQuery}"</span>
+            </p>
+          ) : (
+            <p className="text-gray-700 text-lg">Temukan berbagai produk kaleng berkualitas pilihan Anda</p>
+          )}
         </div>
 
         {/* Category Filter */}
@@ -63,51 +100,70 @@ export default function MenuPage() {
         {/* Products Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {filteredProducts.map((product, index) => (
-            <Link
+            <div
               key={product.id}
-              href={`/product/${product.id}`}
-              className="group animate-fade-in-up"
+              className="group animate-fade-in-up relative"
               style={{ animationDelay: `${index * 100}ms` }}
             >
-              <div className="bg-white/80 backdrop-blur-sm rounded-2xl overflow-hidden shadow-md hover:shadow-2xl transition-all duration-300 hover:-translate-y-2 hover:scale-105">
-                {/* Product Image */}
-                <div className="relative h-48 bg-gradient-to-br from-orange-100 to-red-100 overflow-hidden">
-                  <Image
-                    src={product.image || "/placeholder.svg"}
-                    alt={product.name}
-                    fill
-                    className="object-cover group-hover:scale-110 transition-transform duration-500"
-                  />
-                  {/* Badge */}
-                  <div className="absolute top-3 left-3 bg-red-600 text-white text-xs font-bold px-3 py-1 rounded-full">
-                    Terlaris
-                  </div>
-                </div>
-
-                {/* Product Info */}
-                <div className="p-4">
-                  <h3 className="font-bold text-gray-900 mb-2 line-clamp-2 group-hover:text-red-600 transition-colors">
-                    {product.name}
-                  </h3>
-
-                  {/* Rating */}
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="flex items-center gap-1">
-                      <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                      <span className="text-sm font-semibold text-gray-900">{product.rating}</span>
+              <Link href={`/product/${product.id}`}>
+                <div className="bg-white/80 backdrop-blur-sm rounded-2xl overflow-hidden shadow-md hover:shadow-2xl transition-all duration-300 hover:-translate-y-2">
+                  {/* Product Image */}
+                  <div className="relative h-48 bg-gradient-to-br from-orange-100 to-red-100 overflow-hidden">
+                    <Image
+                      src={product.image || "/placeholder.svg"}
+                      alt={product.name}
+                      fill
+                      className="object-cover group-hover:scale-110 transition-transform duration-500"
+                    />
+                    {/* Badge */}
+                    <div className="absolute top-3 left-3 bg-red-600 text-white text-xs font-bold px-3 py-1 rounded-full">
+                      Terlaris
                     </div>
-                    <span className="text-xs text-gray-600">({product.reviews})</span>
-                    <span className="text-xs text-gray-500">• Terjual {product.sold.toLocaleString("id-ID")}</span>
+                    <button
+                      onClick={(e) => handleToggleWishlist(e, product)}
+                      className={`absolute top-3 right-3 w-9 h-9 rounded-full flex items-center justify-center transition-all duration-300 ${
+                        isInWishlist(product.id)
+                          ? "bg-red-500 text-white scale-110"
+                          : "bg-white/90 text-gray-700 hover:bg-red-50 hover:text-red-500"
+                      }`}
+                    >
+                      <Heart className={`w-5 h-5 ${isInWishlist(product.id) ? "fill-white" : ""}`} />
+                    </button>
                   </div>
 
-                  {/* Price */}
-                  <div className="flex items-center justify-between">
-                    <span className="text-xl font-bold text-red-600">Rp{product.price.toLocaleString("id-ID")}</span>
-                    <span className="text-xs text-gray-600">Stok: {product.stock}</span>
+                  {/* Product Info */}
+                  <div className="p-4">
+                    <h3 className="font-bold text-gray-900 mb-2 line-clamp-2 group-hover:text-red-600 transition-colors">
+                      {product.name}
+                    </h3>
+
+                    {/* Rating */}
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="flex items-center gap-1">
+                        <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+                        <span className="text-sm font-semibold text-gray-900">{product.rating}</span>
+                      </div>
+                      <span className="text-xs text-gray-600">({product.reviews})</span>
+                      <span className="text-xs text-gray-500">• Terjual {product.sold.toLocaleString("id-ID")}</span>
+                    </div>
+
+                    {/* Price */}
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-xl font-bold text-red-600">Rp{product.price.toLocaleString("id-ID")}</span>
+                      <span className="text-xs text-gray-600">Stok: {product.stock}</span>
+                    </div>
+
+                    <button
+                      onClick={(e) => handleQuickAddToCart(e, product)}
+                      className="w-full bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white font-semibold py-2 px-4 rounded-lg flex items-center justify-center gap-2 transition-all duration-300 hover:scale-105"
+                    >
+                      <ShoppingCart className="w-4 h-4" />
+                      Tambah ke Keranjang
+                    </button>
                   </div>
                 </div>
-              </div>
-            </Link>
+              </Link>
+            </div>
           ))}
         </div>
 
