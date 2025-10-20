@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { listenAuth, logout } from "@/lib/auth"
+import { User } from "firebase/auth"
 
 export default function ProfileMenu() {
   const router = useRouter()
@@ -11,26 +13,33 @@ export default function ProfileMenu() {
   const [userData, setUserData] = useState<{ name: string; email: string } | null>(null)
 
   useEffect(() => {
-    const checkAuth = () => {
-      const storedUser = localStorage.getItem("cannedit_user")
-      if (storedUser) {
-        const user = JSON.parse(storedUser)
-        if (user.loggedIn) {
-          setIsLoggedIn(true)
-          setUserData({ name: user.name || user.email.split("@")[0], email: user.email })
-        }
+    const unsubscribe = listenAuth((user: User | null) => {
+      if (user) {
+        setIsLoggedIn(true)
+        setUserData({
+          name: user.displayName || user.email?.split("@")[0] || "User",
+          email: user.email || "user@cannedit.id",
+        })
+        localStorage.setItem(
+          "cannedit_user",
+          JSON.stringify({
+            loggedIn: true,
+            name: user.displayName,
+            email: user.email,
+          })
+        )
+      } else {
+        setIsLoggedIn(false)
+        setUserData(null)
+        localStorage.removeItem("cannedit_user")
       }
-    }
+    })
 
-    checkAuth()
-    // Check auth when menu opens
-    if (isOpen) {
-      checkAuth()
-    }
-  }, [isOpen])
+    return () => unsubscribe()
+  }, [])
 
-  const handleLogout = () => {
-    localStorage.removeItem("cannedit_user")
+  const handleLogout = async () => {
+    await logout()
     setIsLoggedIn(false)
     setUserData(null)
     setIsOpen(false)
@@ -126,7 +135,6 @@ export default function ProfileMenu() {
               </div>
             ) : (
               <>
-                {/* Header */}
                 <div className="flex items-center gap-3 pb-3 border-b border-slate-200 mb-2">
                   <div className="w-9 h-9 rounded-full bg-green-600 text-white flex items-center justify-center font-bold text-sm flex-shrink-0">
                     {getInitials()}
@@ -137,7 +145,6 @@ export default function ProfileMenu() {
                   </div>
                 </div>
 
-                {/* Menu Items */}
                 <nav className="space-y-1">
                   <Link
                     href="/profile"

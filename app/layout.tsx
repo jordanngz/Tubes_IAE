@@ -2,6 +2,7 @@ import type React from "react"
 import type { Metadata } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 import { CartProvider } from "@/lib/cart-context"
+import {AuthProvider} from "@/lib/auth-context"
 import "./globals.css"
 
 const geistSans = Geist({ subsets: ["latin"] })
@@ -20,9 +21,11 @@ export default function RootLayout({
   return (
     <html lang="id">
       <body className={`${geistSans.className} antialiased bg-gradient-to-br from-[#fff5f5] via-[#ffe0cc] to-[#ffc6a3]`}>
-        <CartProvider>
-          {children}
-        </CartProvider>
+        <AuthProvider>
+          <CartProvider>
+            {children}
+          </CartProvider>
+        </AuthProvider>
       </body>
     </html>
   )

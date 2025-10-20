@@ -5,6 +5,9 @@ import type React from "react"
 import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { signInWithPopup } from "firebase/auth"
+import {auth, googleProvider, db} from '@/lib/firebase'
+import { doc, setDoc, serverTimestamp } from "firebase/firestore"
 
 export default function LoginPage() {
   const router = useRouter()
@@ -45,6 +48,31 @@ export default function LoginPage() {
     localStorage.setItem("cannedit_user", JSON.stringify(userData))
     setIsLoading(false)
     router.push("/")
+  }
+
+  const handleGoogleLogin = async () => {
+    try {
+      const result = await signInWithPopup(auth, googleProvider)
+      const user = result.user
+
+      const userRef = doc(db, "users", user.uid)
+      await setDoc(
+        userRef,
+        {
+          uid: user.uid,
+          email: user.email,
+          name: user.displayName,
+          photo: user.photoURL,
+          lastLogin: serverTimestamp(),
+        },
+        { merge: true } // buat merge overwrite data lama
+      )
+
+      router.push("/")
+    } catch (err: any) {
+      console.error("Google login error:", err)
+      setError("Gagal login dengan Google")
+    }
   }
 
   return (
@@ -173,6 +201,7 @@ export default function LoginPage() {
             <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-500 delay-700">
               <button
                 type="button"
+                onClick={handleGoogleLogin}
                 className="w-full py-3 px-4 bg-white border border-slate-200 rounded-xl font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all duration-300 flex items-center justify-center gap-3 group"
               >
                 <svg className="w-5 h-5" viewBox="0 0 24 24">
