@@ -9,6 +9,7 @@ import { signInWithPopup } from "firebase/auth"
 import { auth, googleProvider } from "../../lib/firebase"
 import { doc, setDoc, serverTimestamp } from "firebase/firestore"
 import { db } from "../../lib/firebase"
+import { registerUser } from "../../lib/auth"
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -33,9 +34,6 @@ export default function RegisterPage() {
     e.preventDefault()
     setError("")
     setIsLoading(true)
-
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1200))
 
     // Validation
     if (!formData.name || !formData.email || !formData.password || !formData.confirmPassword) {
@@ -62,17 +60,28 @@ export default function RegisterPage() {
       return
     }
 
-    // Store user data in localStorage
-    const userData = {
-      name: formData.name,
-      email: formData.email,
-      loggedIn: true,
-      registeredAt: new Date().toISOString(),
-    }
+    try {
+      const user = await registerUser({
+        name: formData.name,
+        email: formData.email,
+        password: formData.password,
+      })
 
-    localStorage.setItem("cannedit_user", JSON.stringify(userData))
-    setIsLoading(false)
-    router.push("/")
+      // Store user data in localStorage
+      const userData = {
+        name: user.displayName || formData.name,
+        email: user.email,
+        loggedIn: true,
+        registeredAt: new Date().toISOString(),
+      }
+
+      localStorage.setItem("cannedit_user", JSON.stringify(userData))
+      setIsLoading(false)
+      router.push("/")
+    } catch (err) {
+      setError((err as Error).message)
+      setIsLoading(false)
+    }
   }
 
   const handleGoogleRegister = async () => {
@@ -93,6 +102,15 @@ export default function RegisterPage() {
         { merge: true } // merge to avoid overwriting existing data
       )
 
+      // Automatically set the user as logged in
+      const userData = {
+        name: user.displayName,
+        email: user.email,
+        loggedIn: true,
+        registeredAt: new Date().toISOString(),
+      }
+
+      localStorage.setItem("cannedit_user", JSON.stringify(userData))
       router.push("/")
     } catch (err: any) {
       console.error("Google register error:", err)
