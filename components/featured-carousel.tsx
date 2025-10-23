@@ -1,4 +1,6 @@
 "use client"
+import Image from "next/image"
+
 
 import { useState, useEffect } from "react"
 
@@ -7,12 +9,12 @@ export default function FeaturedCarousel() {
   const [isAutoPlay, setIsAutoPlay] = useState(true)
 
   const products = [
-    { id: 1, name: "Ayam Chicken", image: "/ayam_kaleng.jpg", price: "Rp25.000" },
-    { id: 2, name: "Sapi Beef", image: "/canned-beef.jpg", price: "Rp35.000" },
-    { id: 3, name: "Ikan Fish", image: "/canned-fish.jpg", price: "Rp28.000" },
-    { id: 4, name: "Sayur Veggie", image: "/canned-vegetables.jpg", price: "Rp18.000" },
-    { id: 5, name: "Pedas Spicy", image: "/canned-spicy.jpg", price: "Rp30.000" },
-    { id: 6, name: "Campur Mix", image: "/canned-mix.jpg", price: "Rp32.000" },
+    { id: 1, name: "Ayam HayDay", image: "/ayam_kaleng.jpg", price: "Rp25.000" },
+    { id: 2, name: "Mr. Eugene Krabs", image: "/kepiting.jpg", price: "Rp25.000" },
+    { id: 3, name: "Ayam HayDay", image: "/ayam_kaleng.jpg", price: "Rp25.000" },
+    { id: 4, name: "Mr. Eugene Krabs", image: "/kepiting.jpg", price: "Rp25.000" },
+    { id: 5, name: "Ayam HayDay", image: "/ayam_kaleng.jpg", price: "Rp25.000" },
+    { id: 6, name: "Mr. Eugene Krabs", image: "/kepiting.jpg", price: "Rp25.000" },
   ]
 
   useEffect(() => {
@@ -50,10 +52,12 @@ export default function FeaturedCarousel() {
           <div className="relative h-64 lg:h-80 bg-gradient-to-br from-amber-50 to-orange-50 flex items-center justify-center">
             {/* Product Image */}
             <div className="relative w-full h-full flex items-center justify-center">
-              <img
+              <Image
                 src={products[currentIndex].image || "/placeholder.svg"}
                 alt={products[currentIndex].name}
                 className="absolute w-full h-full object-contain"
+                layout="fill"
+                objectFit="contain"
               />
             </div>
 

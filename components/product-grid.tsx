@@ -1,13 +1,15 @@
+import Image from "next/image";
+
 export default function ProductGrid() {
   const products = [
-    { id: 1, name: "Ayam Chicken", category: "Daging Unggas", image: "/canned-chicken.jpg", price: "Rp 25.000" },
-    { id: 2, name: "Sapi Beef", category: "Daging Sapi", image: "/canned-beef.jpg", price: "Rp 35.000" },
-    { id: 3, name: "Ikan Fish", category: "Ikan & Seafood", image: "/canned-fish.jpg", price: "Rp 28.000" },
-    { id: 4, name: "Sayur Veggie", category: "Sayuran", image: "/canned-vegetables.jpg", price: "Rp 18.000" },
-    { id: 5, name: "Kornet Sapi", category: "Daging Sapi", image: "/canned-beef.jpg", price: "Rp 32.000" },
-    { id: 6, name: "Sarden Kaleng", category: "Ikan & Seafood", image: "/canned-fish.jpg", price: "Rp 22.000" },
-    { id: 7, name: "Buah Kaleng", category: "Buah-buahan", image: "/canned-vegetables.jpg", price: "Rp 20.000" },
-    { id: 8, name: "Jamur Kaleng", category: "Sayuran", image: "/canned-vegetables.jpg", price: "Rp 15.000" },
+    { id: 1, name: "Ayam Chicken", category: "Daging Unggas", image: "/ayam_kaleng.jpg", price: "Rp 25.000" },
+    { id: 2, name: "Sapi Beef", category: "Daging Sapi", image: "/corned_beef.jpeg", price: "Rp 35.000" },
+    { id: 3, name: "Ikan Fish", category: "Ikan & Seafood", image: "/ikan_kaleng.jpeg", price: "Rp 28.000" },
+    { id: 4, name: "Sayur Veggie", category: "Sayuran", image: "/sayur_kaleng.jpg", price: "Rp 18.000" },
+    { id: 5, name: "Kornet Sapi", category: "Daging Sapi", image: "/corned_beef.jpeg", price: "Rp 32.000" },
+    { id: 6, name: "Sarden Kaleng", category: "Ikan & Seafood", image: "/ikan_kaleng.jpeg", price: "Rp 22.000" },
+    { id: 7, name: "Buah Kaleng", category: "Buah-buahan", image: "/sayur_kaleng.jpg", price: "Rp 20.000" },
+    { id: 8, name: "Jamur Kaleng", category: "Sayuran", image: "/sayur_kaleng.jpg", price: "Rp 15.000" },
   ]
 
   return (
@@ -26,10 +28,12 @@ export default function ProductGrid() {
             className="bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-xl hover:-translate-y-2 transition-all duration-300 group border border-orange-100"
           >
             <div className="relative aspect-square bg-gradient-to-br from-amber-50 to-orange-50 overflow-hidden">
-              <img
+              <Image
                 src={product.image || "/placeholder.svg"}
                 alt={product.name}
                 className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                layout="fill"
+                objectFit="cover"
               />
             </div>
             <div className="p-4 space-y-2">

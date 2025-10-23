@@ -1,4 +1,5 @@
 "use client"
+import Image from "next/image"
 
 export default function HeroSection() {
   return (
@@ -76,10 +77,12 @@ export default function HeroSection() {
 
           <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/40 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 z-20" />
 
-          <img
-            src="/image/rendang.jpg"
+          <Image
+            src="/rendang_kaleng.jpeg"
             alt="Rendang Daging Sapi"
             className="w-full h-full object-cover rounded-full transition-transform duration-500 group-hover:scale-110"
+            layout="fill"
+            objectFit="cover"
           />
 
           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur-md px-4 py-2 rounded-full shadow-lg border border-white/50 opacity-0 group-hover:opacity-100 transition-all duration-500 group-hover:-translate-y-2 z-30">
