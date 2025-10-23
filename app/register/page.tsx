@@ -2,16 +2,28 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { signInWithPopup } from "firebase/auth"
-import { auth, googleProvider } from "../../lib/firebase"
+import { auth, googleProvider } from "@/lib/firebase"
 import { doc, setDoc, serverTimestamp } from "firebase/firestore"
-import { db } from "../../lib/firebase"
-import { registerUser } from "../../lib/auth"
+import { db } from "@/lib/firebase"
+import { registerUser } from "@/lib/auth"
+import { listenAuth } from "@/lib/auth"
 
 export default function RegisterPage() {
+  useEffect(() => {
+  const unsub = listenAuth((user) => {
+    if (user) {
+      console.log("User logged in:", user)
+    } else {
+      console.log("User logged out")
+    }
+  })
+
+  return () => unsub()
+}, [])
   const router = useRouter()
   const [formData, setFormData] = useState({
     name: "",

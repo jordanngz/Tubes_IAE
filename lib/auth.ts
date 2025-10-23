@@ -1,12 +1,22 @@
-import { onAuthStateChanged, User, signOut, signInWithEmailAndPassword } from "firebase/auth"
+// lib/auth.ts
+import {
+  onAuthStateChanged,
+  User,
+  signOut,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  updateProfile,
+} from "firebase/auth"
 import { auth } from "@/lib/firebase"
 import { doc, setDoc, serverTimestamp } from "firebase/firestore"
 import { db } from "@/lib/firebase"
-import { hash } from "bcryptjs"
 
+// Pantau perubahan user (login/logout)
 export function listenAuth(callback: (user: User | null) => void) {
   return onAuthStateChanged(auth, callback)
 }
+
+// Logout user
 export const logout = async () => {
   try {
     await signOut(auth)
@@ -16,28 +26,55 @@ export const logout = async () => {
   }
 }
 
+// ✅ REGISTER user baru + auto login
 export const registerUser = async (formData: {
   name: string
   email: string
   password: string
 }) => {
   try {
-    // Hash the password before storing it
-    const hashedPassword = await hash(formData.password, 10)
+    // 1️⃣ Buat akun baru
+    const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password)
 
-    const userRef = doc(db, "users", formData.email)
+    // 2️⃣ Update nama user (Firebase Auth)
+    await updateProfile(userCredential.user, { displayName: formData.name })
+
+    // 3️⃣ Simpan data user ke Firestore
+    const userRef = doc(db, "users", userCredential.user.uid)
     await setDoc(userRef, {
+      uid: userCredential.user.uid,
       name: formData.name,
       email: formData.email,
-      password: hashedPassword, // Store the hashed password
       registeredAt: serverTimestamp(),
     })
 
-    // Use the plain password for authentication
-    const userCredential = await signInWithEmailAndPassword(auth, formData.email, formData.password)
+    // 4️⃣ Firebase otomatis login-kan user
     return userCredential.user
   } catch (err) {
     console.error("Registration error:", err)
     throw new Error("Gagal mendaftar. Silakan coba lagi.")
+  }
+}
+
+// ✅ LOGIN user dengan email & password
+export const loginUser = async (email: string, password: string) => {
+  try {
+    const userCredential = await signInWithEmailAndPassword(auth, email, password)
+    const user = userCredential.user
+
+    // Update waktu login terakhir
+    const userRef = doc(db, "users", user.uid)
+    await setDoc(
+      userRef,
+      {
+        lastLogin: serverTimestamp(),
+      },
+      { merge: true }
+    )
+
+    return user
+  } catch (err) {
+    console.error("Login error:", err)
+    throw new Error("Gagal login. Silakan periksa email dan password Anda.")
   }
 }
