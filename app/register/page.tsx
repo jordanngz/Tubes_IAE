@@ -5,6 +5,10 @@ import type React from "react"
 import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { signInWithPopup } from "firebase/auth"
+import { auth, googleProvider } from "../../lib/firebase"
+import { doc, setDoc, serverTimestamp } from "firebase/firestore"
+import { db } from "../../lib/firebase"
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -69,6 +73,31 @@ export default function RegisterPage() {
     localStorage.setItem("cannedit_user", JSON.stringify(userData))
     setIsLoading(false)
     router.push("/")
+  }
+
+  const handleGoogleRegister = async () => {
+    try {
+      const result = await signInWithPopup(auth, googleProvider)
+      const user = result.user
+
+      const userRef = doc(db, "users", user.uid)
+      await setDoc(
+        userRef,
+        {
+          uid: user.uid,
+          email: user.email,
+          name: user.displayName,
+          photo: user.photoURL,
+          registeredAt: serverTimestamp(),
+        },
+        { merge: true } // merge to avoid overwriting existing data
+      )
+
+      router.push("/")
+    } catch (err: any) {
+      console.error("Google register error:", err)
+      setError("Gagal mendaftar dengan Google")
+    }
   }
 
   return (
@@ -194,7 +223,7 @@ export default function RegisterPage() {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full py-3.5 bg-gradient-to-r from-red-500 to-orange-500 text-white font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed animate-in fade-in slide-in-from-bottom-2 duration-500 delay-700"
+                className="w-full py-3.5 bg-gradient-to-r from-red-500 to-orange-500 text-white font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all duration-500"
               >
                 {isLoading ? (
                   <span className="flex items-center justify-center gap-2">
@@ -236,6 +265,7 @@ export default function RegisterPage() {
             <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-500 delay-900">
               <button
                 type="button"
+                onClick={handleGoogleRegister}
                 className="w-full py-3 px-4 bg-white border border-slate-200 rounded-xl font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all duration-300 flex items-center justify-center gap-3 group"
               >
                 <svg className="w-5 h-5" viewBox="0 0 24 24">
