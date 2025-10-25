@@ -10,6 +10,7 @@ import Navbar from "@/components/navbar"
 import { products, categories } from "@/lib/products-data"
 import { Star, Heart, ShoppingCart } from "lucide-react"
 import { useCart } from "@/lib/cart-context"
+import Swal from "sweetalert2"
 
 export default function MenuPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>("all")
@@ -41,7 +42,11 @@ export default function MenuPage() {
     e.preventDefault()
     e.stopPropagation()
     addToCart(product, 1, {})
-    alert("Produk ditambahkan ke keranjang!")
+    Swal.fire({
+          title: "Sukses",
+          text: "Mantap! Produk telah ditambahkan ke keranjang",
+          icon: "success"
+        });
   }
 
   return (

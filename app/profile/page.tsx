@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import Navbar from "@/components/navbar"
 import { User, Mail, Phone, Calendar, MapPin } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import Swal from "sweetalert2"
 
 export default function ProfilePage() {
   const router = useRouter()
@@ -52,7 +53,11 @@ export default function ProfilePage() {
   const handleSave = () => {
     localStorage.setItem("cannedit_profile", JSON.stringify(profileData))
     setIsEditing(false)
-    alert("Profil berhasil diperbarui!")
+    Swal.fire({
+      title: "Sukses",
+      text: "Profil berhasil diperbarui!",
+      icon: "success"
+    });
   }
 
   if (!isLoggedIn) return null
