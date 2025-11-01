@@ -1,178 +1,47 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useAuth } from "@/lib/auth-context";
 
-// Analytics data placeholder
-const analyticsData = {
-  store_info: {
-    store_id: null,
-    store_name: "Nama Toko Placeholder",
-    period: {
-      start: "2025-10-01",
-      end: "2025-11-01",
-    },
-    generated_at: "2025-11-01T00:00:00Z",
-  },
-  sales_overview: {
-    total_orders: 120,
-    completed_orders: 95,
-    canceled_orders: 5,
-    returned_orders: 2,
-    total_revenue: 4850000.0,
-    average_order_value: 40416.67,
-    total_products_sold: 370,
-    total_buyers: 112,
-  },
-  sales_trend: [
-    {
-      date: "2025-10-25",
-      order_count: 10,
-      revenue: 450000.0,
-    },
-    {
-      date: "2025-10-26",
-      order_count: 12,
-      revenue: 520000.0,
-    },
-    {
-      date: "2025-10-27",
-      order_count: 8,
-      revenue: 385000.0,
-    },
-  ],
-  top_products: [
-    {
-      product_id: null,
-      product_name: "Sarden Pedas 350g",
-      total_sold: 120,
-      revenue: 3000000.0,
-      average_rating: 4.6,
-      stock_remaining: 30,
-    },
-    {
-      product_id: null,
-      product_name: "Tuna Kaleng Original 200g",
-      total_sold: 80,
-      revenue: 1600000.0,
-      average_rating: 4.3,
-      stock_remaining: 45,
-    },
-  ],
-  category_performance: [
-    {
-      category_id: null,
-      category_name: "Makanan Kaleng",
-      total_products: 15,
-      total_sold: 200,
-      revenue: 4200000.0,
-    },
-    {
-      category_id: null,
-      category_name: "Seafood",
-      total_products: 5,
-      total_sold: 50,
-      revenue: 650000.0,
-    },
-  ],
-  payment_summary: {
-    total_transactions: 120,
-    successful_payments: 115,
-    failed_payments: 5,
-    payment_methods: [
-      {
-        method: "Midtrans - Bank Transfer",
-        transaction_count: 80,
-        total_amount: 3500000.0,
-      },
-      {
-        method: "Midtrans - E-Wallet",
-        transaction_count: 40,
-        total_amount: 1350000.0,
-      },
-    ],
-  },
-  shipping_summary: {
-    total_shipments: 120,
-    delivered: 110,
-    in_transit: 8,
-    returned: 2,
-    average_delivery_time_days: 2.4,
-    top_carriers: [
-      {
-        carrier_name: "JNE",
-        shipment_count: 70,
-        on_time_rate: 94.0,
-      },
-      {
-        carrier_name: "SiCepat",
-        shipment_count: 30,
-        on_time_rate: 90.5,
-      },
-      {
-        carrier_name: "POS Indonesia",
-        shipment_count: 20,
-        on_time_rate: 89.0,
-      },
-    ],
-  },
-  customer_feedback: {
-    total_reviews: 45,
-    average_rating: 4.4,
-    positive_reviews: 35,
-    neutral_reviews: 8,
-    negative_reviews: 2,
-    recent_reviews: [
-      {
-        review_id: null,
-        product_name: "Sarden Pedas 350g",
-        rating: 5,
-        title: "Enak banget!",
-        body: "Rasa pedasnya mantap dan tidak amis.",
-        created_at: "2025-10-30T09:00:00Z",
-      },
-      {
-        review_id: null,
-        product_name: "Tuna Kaleng Original 200g",
-        rating: 3,
-        title: "Kurang kuat rasanya",
-        body: "Harusnya lebih gurih sedikit.",
-        created_at: "2025-10-29T15:30:00Z",
-      },
-    ],
-  },
-  financial_report: {
-    gross_revenue: 4850000.0,
-    total_discounts: 250000.0,
-    total_fees: 145000.0,
-    net_revenue: 4455000.0,
-    estimated_payout: 4400000.0,
-    last_payout_date: "2025-10-31T00:00:00Z",
-  },
-  activity_log: [
-    {
-      id: 1,
-      type: "generate_report",
-      description: "Seller menghasilkan laporan penjualan mingguan.",
-      timestamp: "2025-11-01T00:00:00Z",
-    },
-    {
-      id: 2,
-      type: "export_report",
-      description: "Laporan keuangan diekspor ke format PDF.",
-      timestamp: "2025-11-01T00:15:00Z",
-    },
-    {
-      id: 3,
-      type: "filter_applied",
-      description: "Seller memfilter laporan berdasarkan kategori 'Makanan Kaleng'.",
-      timestamp: "2025-11-01T00:20:00Z",
-    },
-  ],
-};
+// Data will be fetched from API
 
 export default function AnalyticsPage() {
+  const { user } = useAuth();
   const [selectedPeriod, setSelectedPeriod] = useState("last_30_days");
   const [showExportModal, setShowExportModal] = useState(false);
+  const [exportFormat, setExportFormat] = useState<"CSV" | "XLSX" | "PDF">("CSV");
+  const [exporting, setExporting] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [analytics, setAnalytics] = useState<any | null>(null);
+  const [customStart, setCustomStart] = useState<string>("");
+  const [customEnd, setCustomEnd] = useState<string>("");
+
+  useEffect(() => {
+    let mounted = true;
+    async function load() {
+      try {
+        if (!user) return;
+        setLoading(true);
+        const token = await user.getIdToken();
+        const params = new URLSearchParams({ period: selectedPeriod });
+        if (selectedPeriod === "custom" && customStart && customEnd) {
+          params.set("start", new Date(customStart).toISOString());
+          params.set("end", new Date(customEnd).toISOString());
+        }
+        const res = await fetch(`/api/seller/analytics?${params.toString()}`, { headers: { Authorization: `Bearer ${token}` } });
+        if (!mounted) return;
+        if (res.ok) setAnalytics(await res.json());
+      } catch (e) {
+        console.error(e);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }
+    load();
+    return () => {
+      mounted = false;
+    };
+  }, [user, selectedPeriod, customStart, customEnd]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("id-ID", {
@@ -183,6 +52,7 @@ export default function AnalyticsPage() {
   };
 
   const getPercentage = (value: number, total: number) => {
+    if (!total || total <= 0) return "0.0";
     return ((value / total) * 100).toFixed(1);
   };
 
@@ -196,6 +66,68 @@ export default function AnalyticsPage() {
         ))}
       </div>
     );
+  };
+
+  const salesTrend = useMemo(() => analytics?.sales_trend || [], [analytics]);
+  const topProducts = useMemo(() => analytics?.top_products || [], [analytics]);
+  const categories = useMemo(() => analytics?.category_performance || [], [analytics]);
+  const paymentSummary = analytics?.payment_summary || { total_transactions: 0, successful_payments: 0, failed_payments: 0, payment_methods: [] };
+  const shippingSummary = analytics?.shipping_summary || { total_shipments: 0, delivered: 0, in_transit: 0, returned: 0, average_delivery_time_days: 0, top_carriers: [] };
+  const customerFeedback = analytics?.customer_feedback || { total_reviews: 0, average_rating: 0, positive_reviews: 0, neutral_reviews: 0, negative_reviews: 0, recent_reviews: [] };
+  const financialReport = analytics?.financial_report || { gross_revenue: 0, total_discounts: 0, total_fees: 0, net_revenue: 0, estimated_payout: 0, last_payout_date: new Date().toISOString() };
+  const storeInfo = analytics?.store_info || { period: { start: new Date().toISOString(), end: new Date().toISOString() }, generated_at: new Date().toISOString(), store_name: "" };
+
+  const handleExport = async () => {
+    if (!user) return;
+    // Validate custom range
+    if (selectedPeriod === "custom") {
+      if (!customStart || !customEnd) {
+        alert("Mohon pilih tanggal mulai dan akhir.");
+        return;
+      }
+      if (new Date(customStart) > new Date(customEnd)) {
+        alert("Tanggal mulai tidak boleh lebih besar dari tanggal akhir.");
+        return;
+      }
+    }
+    try {
+      setExporting(true);
+      const token = await user.getIdToken();
+      const params = new URLSearchParams({ period: selectedPeriod, format: exportFormat.toLowerCase() });
+      if (selectedPeriod === "custom" && customStart && customEnd) {
+        params.set("start", new Date(customStart).toISOString());
+        params.set("end", new Date(customEnd).toISOString());
+      }
+      const res = await fetch(`/api/seller/analytics/export?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || "Gagal mengekspor laporan");
+      }
+      const blob = await res.blob();
+      let ext = exportFormat === "XLSX" ? "xlsx" : exportFormat === "CSV" ? "csv" : "pdf";
+      let fileName = `analytics_${selectedPeriod}_${new Date().toISOString().slice(0, 10)}.${ext}`;
+      const disp = res.headers.get("Content-Disposition");
+      if (disp) {
+        const match = /filename=([^;]+)/i.exec(disp);
+        if (match && match[1]) fileName = match[1].replace(/\"/g, "").trim();
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      setShowExportModal(false);
+    } catch (e) {
+      console.error(e);
+      alert((e as Error).message || "Terjadi kesalahan saat mengunduh laporan");
+    } finally {
+      setExporting(false);
+    }
   };
 
   return (
@@ -222,6 +154,23 @@ export default function AnalyticsPage() {
             <option value="last_month">Bulan Lalu</option>
             <option value="custom">Custom Range</option>
           </select>
+          {selectedPeriod === "custom" && (
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={customStart}
+                onChange={(e) => setCustomStart(e.target.value)}
+                className="px-3 py-2 bg-white border-2 border-orange-300 text-amber-900 rounded-lg text-sm"
+              />
+              <span className="text-amber-700">s/d</span>
+              <input
+                type="date"
+                value={customEnd}
+                onChange={(e) => setCustomEnd(e.target.value)}
+                className="px-3 py-2 bg-white border-2 border-orange-300 text-amber-900 rounded-lg text-sm"
+              />
+            </div>
+          )}
           <button
             onClick={() => setShowExportModal(!showExportModal)}
             className="px-4 py-2 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-lg font-semibold text-sm hover:shadow-lg transition-all flex items-center gap-2"
@@ -241,13 +190,13 @@ export default function AnalyticsPage() {
           <div>
             <p className="text-sm text-blue-700 font-medium">Periode Laporan</p>
             <p className="text-lg font-bold text-blue-900">
-              {new Date(analyticsData.store_info.period.start).toLocaleDateString("id-ID", {
+              {new Date(storeInfo.period.start).toLocaleDateString("id-ID", {
                 day: "numeric",
                 month: "long",
                 year: "numeric",
               })}{" "}
               -{" "}
-              {new Date(analyticsData.store_info.period.end).toLocaleDateString("id-ID", {
+              {new Date(storeInfo.period.end).toLocaleDateString("id-ID", {
                 day: "numeric",
                 month: "long",
                 year: "numeric",
@@ -258,7 +207,7 @@ export default function AnalyticsPage() {
         <div className="text-right">
           <p className="text-sm text-blue-700">Dibuat pada</p>
           <p className="font-semibold text-blue-900">
-            {new Date(analyticsData.store_info.generated_at).toLocaleString("id-ID", {
+            {new Date(storeInfo.generated_at).toLocaleString("id-ID", {
               dateStyle: "medium",
               timeStyle: "short",
             })}
@@ -271,26 +220,26 @@ export default function AnalyticsPage() {
         {[
           {
             label: "Total Pesanan",
-            value: analyticsData.sales_overview.total_orders,
+            value: analytics?.sales_overview?.total_orders || 0,
             icon: "🛒",
             color: "from-blue-400 to-cyan-500",
           },
           {
             label: "Total Pendapatan",
-            value: formatCurrency(analyticsData.sales_overview.total_revenue),
+            value: formatCurrency(analytics?.sales_overview?.total_revenue || 0),
             icon: "💰",
             color: "from-green-400 to-emerald-500",
             highlight: true,
           },
           {
             label: "Produk Terjual",
-            value: analyticsData.sales_overview.total_products_sold,
+            value: analytics?.sales_overview?.total_products_sold || 0,
             icon: "📦",
             color: "from-purple-400 to-pink-500",
           },
           {
             label: "Total Pembeli",
-            value: analyticsData.sales_overview.total_buyers,
+            value: analytics?.sales_overview?.total_buyers || 0,
             icon: "👥",
             color: "from-orange-400 to-red-500",
           },
@@ -327,25 +276,25 @@ export default function AnalyticsPage() {
           {[
             {
               label: "Selesai",
-              value: analyticsData.sales_overview.completed_orders,
+              value: analytics?.sales_overview?.completed_orders || 0,
               icon: "✅",
               color: "from-green-400 to-emerald-500",
             },
             {
               label: "Dibatalkan",
-              value: analyticsData.sales_overview.canceled_orders,
+              value: analytics?.sales_overview?.canceled_orders || 0,
               icon: "❌",
               color: "from-red-400 to-pink-500",
             },
             {
               label: "Dikembalikan",
-              value: analyticsData.sales_overview.returned_orders,
+              value: analytics?.sales_overview?.returned_orders || 0,
               icon: "↩️",
               color: "from-orange-400 to-amber-500",
             },
             {
               label: "Nilai Rata-rata",
-              value: formatCurrency(analyticsData.sales_overview.average_order_value),
+              value: formatCurrency(analytics?.sales_overview?.average_order_value || 0),
               icon: "💵",
               color: "from-blue-400 to-cyan-500",
             },
@@ -371,8 +320,9 @@ export default function AnalyticsPage() {
         </div>
 
         <div className="space-y-3">
-          {analyticsData.sales_trend.map((trend, idx) => {
-            const maxRevenue = Math.max(...analyticsData.sales_trend.map((t) => t.revenue));
+          {(analytics?.sales_trend || []).map((trend: any, idx: number) => {
+            const trendData = analytics?.sales_trend || [];
+            const maxRevenue = Math.max(1, ...trendData.map((t: any) => (t?.revenue ?? 0)));
             const percentage = (trend.revenue / maxRevenue) * 100;
 
             return (
@@ -417,7 +367,7 @@ export default function AnalyticsPage() {
         </div>
 
         <div className="space-y-3">
-          {analyticsData.top_products.map((product, idx) => (
+          {(analytics?.top_products || []).map((product: any, idx: number) => (
             <div
               key={idx}
               className="p-4 bg-gradient-to-r from-orange-50 to-amber-50 border-2 border-orange-200 rounded-xl hover:shadow-md transition-all"
@@ -467,7 +417,7 @@ export default function AnalyticsPage() {
           </div>
 
           <div className="space-y-3">
-            {analyticsData.category_performance.map((category, idx) => (
+            {(analytics?.category_performance || []).map((category: any, idx: number) => (
               <div key={idx} className="p-4 bg-orange-50 rounded-lg">
                 <div className="flex items-center justify-between mb-2">
                   <p className="font-bold text-amber-900">{category.category_name}</p>
@@ -501,15 +451,15 @@ export default function AnalyticsPage() {
             {/* Payment Stats */}
             <div className="grid grid-cols-3 gap-3">
               <div className="p-3 bg-gradient-to-br from-blue-50 to-cyan-50 rounded-lg text-center border-2 border-blue-200">
-                <p className="text-2xl font-bold text-blue-900">{analyticsData.payment_summary.total_transactions}</p>
+                <p className="text-2xl font-bold text-blue-900">{analytics?.payment_summary?.total_transactions || 0}</p>
                 <p className="text-xs text-blue-700">Total</p>
               </div>
               <div className="p-3 bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg text-center border-2 border-green-200">
-                <p className="text-2xl font-bold text-green-900">{analyticsData.payment_summary.successful_payments}</p>
+                <p className="text-2xl font-bold text-green-900">{analytics?.payment_summary?.successful_payments || 0}</p>
                 <p className="text-xs text-green-700">Berhasil</p>
               </div>
               <div className="p-3 bg-gradient-to-br from-red-50 to-pink-50 rounded-lg text-center border-2 border-red-200">
-                <p className="text-2xl font-bold text-red-900">{analyticsData.payment_summary.failed_payments}</p>
+                <p className="text-2xl font-bold text-red-900">{analytics?.payment_summary?.failed_payments || 0}</p>
                 <p className="text-xs text-red-700">Gagal</p>
               </div>
             </div>
@@ -517,10 +467,10 @@ export default function AnalyticsPage() {
             {/* Payment Methods */}
             <div className="space-y-2">
               <p className="font-semibold text-amber-900">Metode Pembayaran</p>
-              {analyticsData.payment_summary.payment_methods.map((method, idx) => {
+              {(analytics?.payment_summary?.payment_methods || []).map((method: any, idx: number) => {
                 const percentage = getPercentage(
                   method.transaction_count,
-                  analyticsData.payment_summary.total_transactions
+                  (analytics?.payment_summary?.total_transactions || 0)
                 );
 
                 return (
@@ -559,10 +509,10 @@ export default function AnalyticsPage() {
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               {[
-                { label: "Total Pengiriman", value: analyticsData.shipping_summary.total_shipments, icon: "📦" },
-                { label: "Terkirim", value: analyticsData.shipping_summary.delivered, icon: "✅" },
-                { label: "Dalam Perjalanan", value: analyticsData.shipping_summary.in_transit, icon: "🚚" },
-                { label: "Dikembalikan", value: analyticsData.shipping_summary.returned, icon: "↩️" },
+                { label: "Total Pengiriman", value: analytics?.shipping_summary?.total_shipments || 0, icon: "📦" },
+                { label: "Terkirim", value: analytics?.shipping_summary?.delivered || 0, icon: "✅" },
+                { label: "Dalam Perjalanan", value: analytics?.shipping_summary?.in_transit || 0, icon: "🚚" },
+                { label: "Dikembalikan", value: analytics?.shipping_summary?.returned || 0, icon: "↩️" },
               ].map((stat, idx) => (
                 <div key={idx} className="p-3 bg-orange-50 rounded-lg text-center">
                   <span className="text-2xl">{stat.icon}</span>
@@ -575,7 +525,7 @@ export default function AnalyticsPage() {
             <div className="p-4 bg-gradient-to-r from-blue-50 to-cyan-50 border-2 border-blue-200 rounded-xl text-center">
               <p className="text-sm text-blue-700 mb-1">Rata-rata Waktu Pengiriman</p>
               <p className="text-3xl font-bold text-blue-900">
-                {analyticsData.shipping_summary.average_delivery_time_days} <span className="text-lg">hari</span>
+                {analytics?.shipping_summary?.average_delivery_time_days || 0} <span className="text-lg">hari</span>
               </p>
             </div>
           </div>
@@ -583,7 +533,7 @@ export default function AnalyticsPage() {
           {/* Top Carriers */}
           <div className="space-y-2">
             <p className="font-semibold text-amber-900 mb-3">Kurir Terpopuler</p>
-            {analyticsData.shipping_summary.top_carriers.map((carrier, idx) => (
+            {(analytics?.shipping_summary?.top_carriers || []).map((carrier: any, idx: number) => (
               <div
                 key={idx}
                 className="p-4 bg-gradient-to-r from-orange-50 to-amber-50 border-2 border-orange-200 rounded-xl"
@@ -610,7 +560,7 @@ export default function AnalyticsPage() {
                     <div
                       className="h-full bg-gradient-to-r from-orange-500 to-red-600 rounded-full"
                       style={{
-                        width: `${getPercentage(carrier.shipment_count, analyticsData.shipping_summary.total_shipments)}%`,
+                        width: `${getPercentage(carrier.shipment_count, analytics?.shipping_summary?.total_shipments || 0)}%`,
                       }}
                     ></div>
                   </div>
@@ -634,22 +584,22 @@ export default function AnalyticsPage() {
           {/* Rating Overview */}
           <div className="p-4 bg-gradient-to-br from-yellow-50 to-orange-50 border-2 border-yellow-300 rounded-xl mb-4">
             <div className="text-center mb-3">
-              <p className="text-4xl font-bold text-amber-900">{analyticsData.customer_feedback.average_rating}</p>
-              {renderStars(Math.round(analyticsData.customer_feedback.average_rating))}
-              <p className="text-sm text-amber-700 mt-1">{analyticsData.customer_feedback.total_reviews} ulasan</p>
+              <p className="text-4xl font-bold text-amber-900">{analytics?.customer_feedback?.average_rating || 0}</p>
+              {renderStars(Math.round(analytics?.customer_feedback?.average_rating || 0))}
+              <p className="text-sm text-amber-700 mt-1">{analytics?.customer_feedback?.total_reviews || 0} ulasan</p>
             </div>
 
             <div className="grid grid-cols-3 gap-2 text-center">
               <div>
-                <p className="text-2xl font-bold text-green-600">{analyticsData.customer_feedback.positive_reviews}</p>
+                <p className="text-2xl font-bold text-green-600">{analytics?.customer_feedback?.positive_reviews || 0}</p>
                 <p className="text-xs text-green-700">Positif</p>
               </div>
               <div>
-                <p className="text-2xl font-bold text-blue-600">{analyticsData.customer_feedback.neutral_reviews}</p>
+                <p className="text-2xl font-bold text-blue-600">{analytics?.customer_feedback?.neutral_reviews || 0}</p>
                 <p className="text-xs text-blue-700">Netral</p>
               </div>
               <div>
-                <p className="text-2xl font-bold text-red-600">{analyticsData.customer_feedback.negative_reviews}</p>
+                <p className="text-2xl font-bold text-red-600">{analytics?.customer_feedback?.negative_reviews || 0}</p>
                 <p className="text-xs text-red-700">Negatif</p>
               </div>
             </div>
@@ -658,7 +608,7 @@ export default function AnalyticsPage() {
           {/* Recent Reviews */}
           <div className="space-y-2">
             <p className="font-semibold text-amber-900 text-sm">Ulasan Terbaru</p>
-            {analyticsData.customer_feedback.recent_reviews.map((review, idx) => (
+            {(analytics?.customer_feedback?.recent_reviews || []).map((review: any, idx: number) => (
               <div key={idx} className="p-3 bg-orange-50 rounded-lg">
                 <div className="flex items-center justify-between mb-1">
                   <p className="text-sm font-semibold text-amber-900">{review.product_name}</p>
@@ -682,21 +632,21 @@ export default function AnalyticsPage() {
             {[
               {
                 label: "Pendapatan Kotor",
-                value: analyticsData.financial_report.gross_revenue,
+                value: analytics?.financial_report?.gross_revenue || 0,
                 color: "from-blue-50 to-cyan-50",
                 borderColor: "border-blue-200",
                 textColor: "text-blue-900",
               },
               {
                 label: "Total Diskon",
-                value: -analyticsData.financial_report.total_discounts,
+                value: -(analytics?.financial_report?.total_discounts || 0),
                 color: "from-orange-50 to-amber-50",
                 borderColor: "border-orange-200",
                 textColor: "text-orange-900",
               },
               {
                 label: "Biaya Platform",
-                value: -analyticsData.financial_report.total_fees,
+                value: -(analytics?.financial_report?.total_fees || 0),
                 color: "from-red-50 to-pink-50",
                 borderColor: "border-red-200",
                 textColor: "text-red-900",
@@ -710,7 +660,7 @@ export default function AnalyticsPage() {
 
             <div className="p-4 bg-gradient-to-r from-green-100 to-emerald-100 border-2 border-green-300 rounded-xl">
               <p className="text-sm text-green-700 font-medium mb-1">Pendapatan Bersih</p>
-              <p className="text-3xl font-bold text-green-900">{formatCurrency(analyticsData.financial_report.net_revenue)}</p>
+              <p className="text-3xl font-bold text-green-900">{formatCurrency(analytics?.financial_report?.net_revenue || 0)}</p>
             </div>
 
             <div className="p-4 bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-200 rounded-xl">
@@ -718,7 +668,7 @@ export default function AnalyticsPage() {
                 <div>
                   <p className="text-sm text-purple-700 font-medium mb-1">Estimasi Pencairan</p>
                   <p className="text-2xl font-bold text-purple-900">
-                    {formatCurrency(analyticsData.financial_report.estimated_payout)}
+                    {formatCurrency(analytics?.financial_report?.estimated_payout || 0)}
                   </p>
                 </div>
                 <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-400 to-pink-500 flex items-center justify-center text-white text-xl">
@@ -727,7 +677,7 @@ export default function AnalyticsPage() {
               </div>
               <p className="text-xs text-purple-700 mt-2">
                 Pencairan terakhir:{" "}
-                {new Date(analyticsData.financial_report.last_payout_date).toLocaleDateString("id-ID", {
+                {new Date(analytics?.financial_report?.last_payout_date || Date.now()).toLocaleDateString("id-ID", {
                   day: "numeric",
                   month: "long",
                   year: "numeric",
@@ -746,7 +696,7 @@ export default function AnalyticsPage() {
         </div>
 
         <div className="space-y-3">
-          {analyticsData.activity_log.map((activity) => (
+          {(analytics?.activity_log || []).map((activity: any) => (
             <div
               key={activity.id}
               className="flex items-start gap-4 p-4 bg-orange-50 rounded-lg hover:bg-orange-100 transition-colors"
@@ -800,7 +750,12 @@ export default function AnalyticsPage() {
                   {["PDF", "XLSX", "CSV"].map((format) => (
                     <button
                       key={format}
-                      className="px-4 py-3 bg-orange-50 hover:bg-orange-100 border-2 border-orange-300 rounded-lg font-semibold text-amber-900 transition-colors"
+                      onClick={() => setExportFormat(format as any)}
+                      className={`px-4 py-3 rounded-lg font-semibold transition-colors border-2 ${
+                        exportFormat === format
+                          ? "bg-gradient-to-r from-orange-500 to-red-600 text-white border-orange-500"
+                          : "bg-orange-50 hover:bg-orange-100 border-orange-300 text-amber-900"
+                      }`}
                     >
                       {format}
                     </button>
@@ -810,18 +765,53 @@ export default function AnalyticsPage() {
 
               <div>
                 <label className="block text-sm font-semibold text-amber-900 mb-2">Periode</label>
-                <select className="w-full px-4 py-2 bg-orange-50 border-2 border-orange-200 rounded-lg text-amber-900 font-medium focus:outline-none focus:ring-2 focus:ring-orange-400">
-                  <option>30 Hari Terakhir</option>
-                  <option>7 Hari Terakhir</option>
-                  <option>Bulan Ini</option>
-                  <option>Bulan Lalu</option>
-                  <option>Custom Range</option>
+                <select
+                  value={selectedPeriod}
+                  onChange={(e) => setSelectedPeriod(e.target.value)}
+                  className="w-full px-4 py-2 bg-orange-50 border-2 border-orange-200 rounded-lg text-amber-900 font-medium focus:outline-none focus:ring-2 focus:ring-orange-400"
+                >
+                  <option value="last_30_days">30 Hari Terakhir</option>
+                  <option value="last_7_days">7 Hari Terakhir</option>
+                  <option value="this_month">Bulan Ini</option>
+                  <option value="last_month">Bulan Lalu</option>
+                  <option value="today">Hari Ini</option>
+                  <option value="custom">Custom Range</option>
                 </select>
+                {selectedPeriod === "custom" && (
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs text-amber-700 mb-1">Mulai</label>
+                      <input
+                        type="date"
+                        value={customStart}
+                        onChange={(e) => setCustomStart(e.target.value)}
+                        className="w-full px-3 py-2 bg-white border-2 border-orange-200 rounded-lg text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-amber-700 mb-1">Akhir</label>
+                      <input
+                        type="date"
+                        value={customEnd}
+                        onChange={(e) => setCustomEnd(e.target.value)}
+                        className="w-full px-3 py-2 bg-white border-2 border-orange-200 rounded-lg text-sm"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
-              <button className="w-full px-4 py-3 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-lg font-semibold hover:shadow-lg transition-all flex items-center justify-center gap-2">
+              <button
+                onClick={handleExport}
+                disabled={exporting}
+                className={`w-full px-4 py-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 ${
+                  exporting
+                    ? "bg-orange-300 text-white cursor-not-allowed"
+                    : "bg-gradient-to-r from-orange-500 to-red-600 text-white hover:shadow-lg"
+                }`}
+              >
                 <span>📥</span>
-                <span>Unduh Laporan</span>
+                <span>{exporting ? "Menyiapkan..." : "Unduh Laporan"}</span>
               </button>
             </div>
           </div>

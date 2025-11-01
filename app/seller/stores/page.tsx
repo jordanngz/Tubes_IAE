@@ -1,129 +1,97 @@
 "use client";
 
-import { useState } from "react";
-import Link from "next/link";
+import { useEffect, useState } from "react";
+import { useAuth } from "@/lib/auth-context";
 
-// Store data placeholder
-const storeData = {
-  store_profile: {
-    id: null,
-    owner_id: null,
-    name: "Nama Toko Placeholder",
-    slug: "nama-toko-placeholder",
-    description: "Deskripsi singkat mengenai toko makanan kaleng Anda.",
-    logo: "/images/store/logo-placeholder.png",
-    banner: "/images/store/banner-placeholder.jpg",
-    status: "pending",
-    verified_at: null,
-    rating_avg: 0.0,
-    rating_count: 0,
-    policies: {
-      return_policy: "Belum diatur",
-      shipping_policy: "Belum diatur",
-      privacy_policy: "Belum diatur",
-    },
-    contact_email: "email@tokoanda.com",
-    contact_phone: "+62-812-0000-0000",
-    is_active: true,
-    created_at: null,
-    updated_at: null,
-  },
-  store_address: {
-    id: null,
-    label: "Alamat Utama",
-    recipient_name: "Nama Pemilik Toko",
-    phone: "+62-812-0000-0000",
-    address_line1: "Jalan Contoh No.123",
-    address_line2: "Kecamatan Placeholder",
-    city: "Kota Placeholder",
-    state: "Provinsi Placeholder",
-    postal_code: "12345",
-    country: "ID",
-    latitude: -6.2,
-    longitude: 106.8166667,
-    is_default: true,
-  },
-  store_operational_settings: {
-    open_status: "open",
-    open_hours: {
-      monday: "08:00 - 20:00",
-      tuesday: "08:00 - 20:00",
-      wednesday: "08:00 - 20:00",
-      thursday: "08:00 - 20:00",
-      friday: "08:00 - 20:00",
-      saturday: "09:00 - 18:00",
-      sunday: "closed",
-    },
-    delivery_options: [
-      {
-        carrier_name: "JNE",
-        service_code: "REG",
-        estimated_days: "2-3",
-        active: true,
-      },
-      {
-        carrier_name: "POS Indonesia",
-        service_code: "Kilat",
-        estimated_days: "3-5",
-        active: false,
-      },
-    ],
-  },
-  store_verification: {
-    application_id: null,
-    status: "submitted",
-    proposed_name: "Nama Toko Placeholder",
-    description: "Menjual berbagai makanan kaleng berkualitas.",
-    documents: [
-      {
-        type: "KTP",
-        file_url: "/uploads/documents/ktp-placeholder.jpg",
-      },
-      {
-        type: "NPWP",
-        file_url: "/uploads/documents/npwp-placeholder.jpg",
-      },
-    ],
-    reviewed_by: null,
-    reviewed_at: null,
-    rejection_reason: null,
-  },
-  store_policy_templates: [
-    {
-      type: "return_policy",
-      title: "Kebijakan Pengembalian Barang",
-      content: "Barang dapat dikembalikan dalam waktu 7 hari setelah diterima.",
-    },
-    {
-      type: "shipping_policy",
-      title: "Kebijakan Pengiriman",
-      content: "Pesanan diproses dalam waktu 1x24 jam dan dikirim melalui kurir pilihan Anda.",
-    },
-    {
-      type: "privacy_policy",
-      title: "Kebijakan Privasi",
-      content: "Kami menjaga kerahasiaan data pembeli sesuai dengan peraturan yang berlaku.",
-    },
-  ],
-  store_activity_log: [
-    {
-      id: 1,
-      type: "update_store_profile",
-      description: "Penjual memperbarui deskripsi toko.",
-      timestamp: "2025-11-01T00:00:00Z",
-    },
-    {
-      id: 2,
-      type: "update_store_status",
-      description: "Toko diubah menjadi status 'open'.",
-      timestamp: "2025-11-01T00:10:00Z",
-    },
-  ],
+type StoreDoc = {
+  store_profile: any;
+  store_address: any;
+  store_operational_settings: any;
+  store_verification: any;
+  store_policy_templates: Array<{ type: string; title: string; content: string }>;
 };
 
 export default function StoreManagementPage() {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<"profile" | "operational" | "verification" | "policies">("profile");
   const [isEditMode, setIsEditMode] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [storeData, setStoreData] = useState<StoreDoc | null>(null);
+  const [activities, setActivities] = useState<Array<any>>([]);
+  const [hasStore, setHasStore] = useState<boolean | null>(null);
+
+  // Fetch store data
+  useEffect(() => {
+    let mounted = true;
+    async function load() {
+      try {
+        if (!user) return;
+        const token = await user.getIdToken();
+        const res = await fetch("/api/seller/store", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (mounted) {
+            setStoreData(data);
+            setHasStore(true);
+          }
+        } else if (res.status === 404) {
+          if (mounted) {
+            setHasStore(false);
+            setStoreData(null);
+          }
+        }
+
+        if (res.ok) {
+          const actRes = await fetch("/api/seller/store/activities", {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const act = await actRes.json();
+          if (mounted) setActivities(act);
+        }
+      } catch (e) {
+        console.error(e);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }
+    load();
+    return () => {
+      mounted = false;
+    };
+  }, [user]);
+
+  const toggleOpenStatus = async () => {
+    if (!user || !storeData) return;
+    const current = storeData.store_operational_settings?.open_status === "open" ? "closed" : "open";
+    // optimistic update
+    setStoreData((prev) =>
+      prev ? { ...prev, store_operational_settings: { ...prev.store_operational_settings, open_status: current } } : prev
+    );
+    try {
+      const token = await user.getIdToken();
+      await fetch("/api/seller/store", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ "store_operational_settings.open_status": current }),
+      });
+      // log activity
+      await fetch("/api/seller/store/activities", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ type: "update_store_status", description: `Toko diubah menjadi status '${current}'.` }),
+      });
+      // reload activities
+      const actRes = await fetch("/api/seller/store/activities", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const act = await actRes.json();
+      setActivities(act);
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   const getStatusBadge = (status: string) => {
     const styles = {
@@ -138,9 +106,37 @@ export default function StoreManagementPage() {
   };
 
   const getDayIcon = (day: string) => {
-    const hours = storeData.store_operational_settings.open_hours[day as keyof typeof storeData.store_operational_settings.open_hours];
-    return hours === "closed" ? "🔒" : "✅";
+    return "✅";
   };
+
+  if (!user) {
+    return (
+      <div className="p-6 bg-white/80 backdrop-blur-xl border-2 border-orange-200 rounded-2xl shadow-lg">
+        <p className="text-amber-900">Silakan masuk untuk mengelola toko Anda.</p>
+      </div>
+    );
+  }
+
+  if (loading || (hasStore === true && !storeData)) {
+    return (
+      <div className="space-y-4">
+        <div className="h-10 w-1/3 bg-orange-100 rounded-lg animate-pulse" />
+        <div className="h-24 w-full bg-orange-50 border-2 border-orange-200 rounded-xl animate-pulse" />
+        <div className="h-96 w-full bg-orange-50 border-2 border-orange-200 rounded-xl animate-pulse" />
+      </div>
+    );
+  }
+
+  // First-time seller: show create store form
+  if (hasStore === false) {
+    return <FirstStoreForm onCreated={() => {
+      setHasStore(true);
+      // re-trigger load by setting loading and relying on useEffect dep on user
+      setLoading(true);
+    }} />;
+  }
+
+  if (!storeData) return null;
 
   return (
     <div className="space-y-6">
@@ -184,7 +180,7 @@ export default function StoreManagementPage() {
             </p>
           </div>
         </div>
-        <button className="px-4 py-2 bg-white rounded-lg font-semibold text-sm text-amber-900 border-2 border-orange-300 hover:bg-orange-50 transition-all duration-300 hover:scale-105">
+        <button onClick={toggleOpenStatus} className="px-4 py-2 bg-white rounded-lg font-semibold text-sm text-amber-900 border-2 border-orange-300 hover:bg-orange-50 transition-all duration-300 hover:scale-105">
           Toggle Status
         </button>
       </div>
@@ -330,15 +326,15 @@ export default function StoreManagementPage() {
                     className="flex items-center justify-between p-3 bg-orange-50 rounded-lg hover:bg-orange-100 transition-colors"
                   >
                     <div className="flex items-center gap-3">
-                      <span className="text-lg">{getDayIcon(day)}</span>
+                      <span className="text-lg">{(hours as string) === "closed" ? "🔒" : "✅"}</span>
                       <span className="font-semibold text-amber-900 capitalize">{day}</span>
                     </div>
                     <span
                       className={`text-sm font-medium ${
-                        hours === "closed" ? "text-gray-500" : "text-green-700"
+                        (hours as string) === "closed" ? "text-gray-500" : "text-green-700"
                       }`}
                     >
-                      {hours === "closed" ? "Tutup" : hours}
+                      {(hours as string) === "closed" ? "Tutup" : (hours as string)}
                     </span>
                   </div>
                 ))}
@@ -353,7 +349,7 @@ export default function StoreManagementPage() {
               </div>
 
               <div className="space-y-3">
-                {storeData.store_operational_settings.delivery_options.map((option, idx) => (
+                {storeData.store_operational_settings.delivery_options.map((option: any, idx: number) => (
                   <div
                     key={idx}
                     className={`p-4 rounded-lg border-2 transition-all duration-300 ${
@@ -425,7 +421,7 @@ export default function StoreManagementPage() {
                 <span>Dokumen yang Diunggah</span>
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {storeData.store_verification.documents.map((doc, idx) => (
+                {storeData.store_verification.documents.map((doc: any, idx: number) => (
                   <div
                     key={idx}
                     className="p-4 bg-orange-50 border-2 border-orange-200 rounded-xl hover:bg-orange-100 transition-colors"
@@ -483,7 +479,7 @@ export default function StoreManagementPage() {
         </div>
 
         <div className="space-y-3">
-          {storeData.store_activity_log.map((activity) => (
+          {activities.map((activity: any) => (
             <div
               key={activity.id}
               className="flex items-start gap-4 p-4 bg-orange-50 rounded-lg hover:bg-orange-100 transition-colors"
@@ -505,6 +501,162 @@ export default function StoreManagementPage() {
           ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+function FirstStoreForm({ onCreated }: { onCreated: () => void }) {
+  const { user } = useAuth();
+  const [submitting, setSubmitting] = useState(false);
+  const [form, setForm] = useState({
+    name: "",
+    slug: "",
+    description: "",
+    contact_email: "",
+    contact_phone: "",
+    address_line1: "",
+    address_line2: "",
+    city: "",
+    state: "",
+    postal_code: "",
+  });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    try {
+      setSubmitting(true);
+      const token = await user.getIdToken();
+      const payload = {
+        store_profile: {
+          name: form.name,
+          slug: form.slug || form.name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, ""),
+          description: form.description,
+          status: "submitted",
+          contact_email: form.contact_email,
+          contact_phone: form.contact_phone,
+          rating_avg: 0,
+          rating_count: 0,
+          is_active: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        store_address: {
+          label: "Alamat Utama",
+          recipient_name: form.name,
+          phone: form.contact_phone,
+          address_line1: form.address_line1,
+          address_line2: form.address_line2,
+          city: form.city,
+          state: form.state,
+          postal_code: form.postal_code,
+          country: "ID",
+          is_default: true,
+        },
+        store_operational_settings: {
+          open_status: "closed",
+          open_hours: {
+            monday: "09:00 - 17:00",
+            tuesday: "09:00 - 17:00",
+            wednesday: "09:00 - 17:00",
+            thursday: "09:00 - 17:00",
+            friday: "09:00 - 17:00",
+            saturday: "closed",
+            sunday: "closed",
+          },
+          delivery_options: [],
+        },
+        store_verification: {
+          status: "submitted",
+          proposed_name: form.name,
+          description: form.description,
+          documents: [],
+        },
+        store_policy_templates: [
+          { type: "return_policy", title: "Kebijakan Pengembalian Barang", content: "Barang dapat dikembalikan dalam 7 hari setelah diterima." },
+          { type: "shipping_policy", title: "Kebijakan Pengiriman", content: "Pesanan diproses dalam 1x24 jam." },
+        ],
+      };
+
+      const res = await fetch("/api/seller/store", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error("Gagal membuat toko");
+
+      // Log activity
+      await fetch("/api/seller/store/activities", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ type: "create_store", description: `Membuat toko pertama: ${form.name}` }),
+      });
+
+      onCreated();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-gradient-to-r from-orange-100 via-amber-50 to-orange-100 border-2 border-orange-300 rounded-xl p-4">
+        <h1 className="text-xl font-bold text-amber-900 flex items-center gap-2"><span>🏪</span>Mulai Buat Toko Pertama</h1>
+        <p className="text-amber-800 text-sm">Lengkapi informasi di bawah ini untuk mendaftarkan toko Anda.</p>
+      </div>
+
+      <form onSubmit={handleSubmit} className="bg-white/80 backdrop-blur-xl border-2 border-orange-200 rounded-2xl shadow-lg p-6 space-y-4 max-w-3xl">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="text-sm font-semibold text-amber-900">Nama Toko</label>
+            <input className="w-full mt-1 px-3 py-2 rounded-lg border-2 border-orange-200 focus:border-orange-500 outline-none" required value={form.name} onChange={(e)=>setForm({...form,name:e.target.value})} />
+          </div>
+          <div>
+            <label className="text-sm font-semibold text-amber-900">Slug</label>
+            <input className="w-full mt-1 px-3 py-2 rounded-lg border-2 border-orange-200 focus:border-orange-500 outline-none" value={form.slug} onChange={(e)=>setForm({...form,slug:e.target.value})} placeholder="nama-toko" />
+          </div>
+          <div>
+            <label className="text-sm font-semibold text-amber-900">Email Kontak</label>
+            <input type="email" className="w-full mt-1 px-3 py-2 rounded-lg border-2 border-orange-200 focus:border-orange-500 outline-none" required value={form.contact_email} onChange={(e)=>setForm({...form,contact_email:e.target.value})} />
+          </div>
+          <div>
+            <label className="text-sm font-semibold text-amber-900">Nomor HP</label>
+            <input className="w-full mt-1 px-3 py-2 rounded-lg border-2 border-orange-200 focus:border-orange-500 outline-none" required value={form.contact_phone} onChange={(e)=>setForm({...form,contact_phone:e.target.value})} />
+          </div>
+          <div className="md:col-span-2">
+            <label className="text-sm font-semibold text-amber-900">Deskripsi</label>
+            <textarea className="w-full mt-1 px-3 py-2 rounded-lg border-2 border-orange-200 focus:border-orange-500 outline-none" rows={3} value={form.description} onChange={(e)=>setForm({...form,description:e.target.value})} />
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="md:col-span-2">
+            <label className="text-sm font-semibold text-amber-900">Alamat</label>
+            <input className="w-full mt-1 px-3 py-2 rounded-lg border-2 border-orange-200 focus:border-orange-500 outline-none" required value={form.address_line1} onChange={(e)=>setForm({...form,address_line1:e.target.value})} placeholder="Jalan, No" />
+          </div>
+          <div className="md:col-span-2">
+            <input className="w-full mt-1 px-3 py-2 rounded-lg border-2 border-orange-200 focus:border-orange-500 outline-none" value={form.address_line2} onChange={(e)=>setForm({...form,address_line2:e.target.value})} placeholder="Kecamatan / Detail lain (opsional)" />
+          </div>
+          <div>
+            <label className="text-sm font-semibold text-amber-900">Kota</label>
+            <input className="w-full mt-1 px-3 py-2 rounded-lg border-2 border-orange-200 focus:border-orange-500 outline-none" required value={form.city} onChange={(e)=>setForm({...form,city:e.target.value})} />
+          </div>
+          <div>
+            <label className="text-sm font-semibold text-amber-900">Provinsi</label>
+            <input className="w-full mt-1 px-3 py-2 rounded-lg border-2 border-orange-200 focus:border-orange-500 outline-none" required value={form.state} onChange={(e)=>setForm({...form,state:e.target.value})} />
+          </div>
+          <div>
+            <label className="text-sm font-semibold text-amber-900">Kode Pos</label>
+            <input className="w-full mt-1 px-3 py-2 rounded-lg border-2 border-orange-200 focus:border-orange-500 outline-none" required value={form.postal_code} onChange={(e)=>setForm({...form,postal_code:e.target.value})} />
+          </div>
+        </div>
+        <div className="flex gap-3">
+          <button disabled={submitting} type="submit" className="px-4 py-2 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-lg font-semibold disabled:opacity-60">
+            {submitting ? "Menyimpan..." : "Buat Toko"}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }

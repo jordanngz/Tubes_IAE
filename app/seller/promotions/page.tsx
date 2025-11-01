@@ -1,137 +1,41 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-
-// Promotion & Coupon data placeholder
-const promoData = {
-  store_info: {
-    store_id: null,
-    store_name: "Nama Toko Placeholder",
-    total_promotions: 0,
-    active_promotions: 0,
-    total_coupons: 0,
-    active_coupons: 0,
-  },
-  promotions: [
-    {
-      promotion_id: null,
-      store_id: null,
-      name: "Promo Awal Bulan Placeholder",
-      description: "Diskon spesial untuk semua produk makanan kaleng di awal bulan.",
-      type: "percentage",
-      value: 15.0,
-      start_at: "2025-11-01T00:00:00Z",
-      end_at: "2025-11-07T23:59:59Z",
-      is_active: true,
-      banner: "/images/promotions/banner-placeholder.jpg",
-      applied_to: [
-        {
-          promotionable_type: "product",
-          promotionable_id: null,
-          name: "Sarden Pedas 350g",
-          sku: "SKU-SP350",
-        },
-        {
-          promotionable_type: "category",
-          promotionable_id: null,
-          name: "Makanan Kaleng",
-          slug: "makanan-kaleng",
-        },
-      ],
-      statistics: {
-        total_sales_during_promo: 120,
-        total_discount_given: 450000.0,
-        unique_buyers: 85,
-      },
-      created_at: "2025-10-25T00:00:00Z",
-      updated_at: "2025-10-25T00:00:00Z",
-    },
-  ],
-  coupons: [
-    {
-      coupon_id: null,
-      store_id: null,
-      code: "CANNDISCOUNT15",
-      type: "percentage",
-      value: 15.0,
-      max_discount: 30000.0,
-      min_order_amount: 100000.0,
-      start_at: "2025-11-01T00:00:00Z",
-      end_at: "2025-11-10T23:59:59Z",
-      usage_limit: 100,
-      per_user_limit: 2,
-      is_active: true,
-      title: "Diskon 15% untuk Semua Produk",
-      description: "Gunakan kode ini untuk mendapatkan diskon 15% hingga Rp30.000!",
-      redemption_count: 45,
-      created_at: "2025-10-28T00:00:00Z",
-      updated_at: "2025-10-28T00:00:00Z",
-    },
-  ],
-  coupon_redemptions: [
-    {
-      redemption_id: null,
-      coupon_id: null,
-      user_id: null,
-      user_name: "Nama Pembeli Placeholder",
-      order_id: null,
-      order_number: "ORD-PLACEHOLDER-001",
-      discount_amount: 15000.0,
-      redeemed_at: "2025-11-02T14:00:00Z",
-    },
-    {
-      redemption_id: null,
-      coupon_id: null,
-      user_id: null,
-      user_name: "Nama Pembeli Placeholder 2",
-      order_id: null,
-      order_number: "ORD-PLACEHOLDER-002",
-      discount_amount: 20000.0,
-      redeemed_at: "2025-11-02T15:30:00Z",
-    },
-  ],
-  promotion_statistics: {
-    total_promotions: 5,
-    active_promotions: 3,
-    expired_promotions: 1,
-    upcoming_promotions: 1,
-    total_discount_given: 1200000.0,
-  },
-  coupon_statistics: {
-    total_coupons: 10,
-    active_coupons: 6,
-    expired_coupons: 2,
-    used_coupons: 120,
-    total_discount_granted: 650000.0,
-  },
-  activity_log: [
-    {
-      id: 1,
-      type: "create_promotion",
-      description: "Membuat promosi baru 'Promo Awal Bulan Placeholder'.",
-      timestamp: "2025-10-25T00:00:00Z",
-    },
-    {
-      id: 2,
-      type: "create_coupon",
-      description: "Menambahkan kupon baru 'CANNDISCOUNT15'.",
-      timestamp: "2025-10-28T00:00:00Z",
-    },
-    {
-      id: 3,
-      type: "coupon_redeemed",
-      description: "Kupon 'CANNDISCOUNT15' digunakan oleh pembeli ORD-PLACEHOLDER-001.",
-      timestamp: "2025-11-02T14:00:00Z",
-    },
-  ],
-};
+import { useAuth } from "@/lib/auth-context";
 
 export default function PromotionsPage() {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<"promotions" | "coupons">("promotions");
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [selectedPromotion, setSelectedPromotion] = useState<number | null>(null);
-  const [selectedCoupon, setSelectedCoupon] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [promotionsData, setPromotionsData] = useState<any | null>(null);
+  const [couponsData, setCouponsData] = useState<any | null>(null);
+  // Form states
+  const [promoForm, setPromoForm] = useState<any>({
+    name: "",
+    description: "",
+    type: "percentage",
+    value: 10,
+    start_at: "",
+    end_at: "",
+    is_active: true,
+    banner: "",
+  });
+  const [couponForm, setCouponForm] = useState<any>({
+    code: "",
+    type: "percentage",
+    value: 10,
+    max_discount: 0,
+    min_order_amount: 0,
+    start_at: "",
+    end_at: "",
+    usage_limit: 100,
+    per_user_limit: 1,
+    is_active: true,
+    title: "",
+    description: "",
+  });
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("id-ID", {
@@ -163,6 +67,209 @@ export default function PromotionsPage() {
     return Math.round((redemptionCount / usageLimit) * 100);
   };
 
+  useEffect(() => {
+    let mounted = true;
+    async function load() {
+      try {
+        if (!user) return;
+        const token = await user.getIdToken();
+        const [promosRes, couponsRes] = await Promise.all([
+          fetch("/api/seller/promotions", { headers: { Authorization: `Bearer ${token}` } }),
+          fetch("/api/seller/coupons", { headers: { Authorization: `Bearer ${token}` } }),
+        ]);
+        if (!mounted) return;
+        if (promosRes.ok) setPromotionsData(await promosRes.json());
+        if (couponsRes.ok) setCouponsData(await couponsRes.json());
+      } catch (e) {
+        console.error(e);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }
+    load();
+    return () => {
+      mounted = false;
+    };
+  }, [user]);
+
+  // compute combined activities early (must be before any conditional returns to keep hooks order stable)
+  const combinedActivities = useMemo(() => {
+    const acts = [...(promotionsData?.activity_log || []), ...(couponsData?.activity_log || [])];
+    return acts
+      .sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+      .slice(0, 10);
+  }, [promotionsData, couponsData]);
+
+  const togglePromotionActive = async (id: string, nextActive: boolean) => {
+    if (!user) return;
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/seller/promotions/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ is_active: nextActive }),
+      });
+      if (!res.ok) return;
+      const updated = await res.json();
+      setPromotionsData((prev: any) => ({
+        ...prev,
+        promotions: (prev?.promotions || []).map((p: any) => (p.id === id ? { ...p, ...updated } : p)),
+        promotion_statistics: prev?.promotion_statistics, // keep; can be recomputed later if needed
+      }));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const deletePromotion = async (id: string) => {
+    if (!user) return;
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/seller/promotions/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) return;
+      setPromotionsData((prev: any) => ({
+        ...prev,
+        promotions: (prev?.promotions || []).filter((p: any) => p.id !== id),
+      }));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const deleteCoupon = async (id: string) => {
+    if (!user) return;
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/seller/coupons/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) return;
+      setCouponsData((prev: any) => ({ ...prev, coupons: (prev?.coupons || []).filter((c: any) => c.id !== id) }));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const toggleCouponActive = async (id: string, nextActive: boolean) => {
+    if (!user) return;
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/seller/coupons/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ is_active: nextActive }),
+      });
+      if (!res.ok) return;
+      const updated = await res.json();
+      setCouponsData((prev: any) => ({
+        ...prev,
+        coupons: (prev?.coupons || []).map((c: any) => (c.id === id ? { ...c, ...updated } : c)),
+      }));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const createPromotion = async () => {
+    if (!user) return;
+    // simple validation
+    if (!promoForm.name || !promoForm.type || !promoForm.value || !promoForm.start_at || !promoForm.end_at) return;
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/seller/promotions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          name: promoForm.name,
+          description: promoForm.description,
+          type: promoForm.type,
+          value: Number(promoForm.value),
+          start_at: promoForm.start_at,
+          end_at: promoForm.end_at,
+          is_active: !!promoForm.is_active,
+          banner: promoForm.banner || null,
+          applied_to: [],
+        }),
+      });
+      if (!res.ok) return;
+      const created = await res.json();
+      setPromotionsData((prev: any) => ({ ...prev, promotions: [created, ...(prev?.promotions || [])] }));
+      setShowCreateForm(false);
+      setPromoForm({ name: "", description: "", type: "percentage", value: 10, start_at: "", end_at: "", is_active: true, banner: "" });
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const createCoupon = async () => {
+    if (!user) return;
+    // simple validation
+    if (!couponForm.code || !couponForm.type || !couponForm.value || !couponForm.start_at || !couponForm.end_at || !couponForm.title) return;
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/seller/coupons`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          code: couponForm.code,
+          type: couponForm.type,
+          value: Number(couponForm.value),
+          max_discount: Number(couponForm.max_discount || 0),
+          min_order_amount: Number(couponForm.min_order_amount || 0),
+          start_at: couponForm.start_at,
+          end_at: couponForm.end_at,
+          usage_limit: Number(couponForm.usage_limit || 0),
+          per_user_limit: Number(couponForm.per_user_limit || 1),
+          is_active: !!couponForm.is_active,
+          title: couponForm.title,
+          description: couponForm.description || "",
+        }),
+      });
+      if (!res.ok) return;
+      const created = await res.json();
+      setCouponsData((prev: any) => ({ ...prev, coupons: [created, ...(prev?.coupons || [])] }));
+      setShowCreateForm(false);
+      setCouponForm({
+        code: "",
+        type: "percentage",
+        value: 10,
+        max_discount: 0,
+        min_order_amount: 0,
+        start_at: "",
+        end_at: "",
+        usage_limit: 100,
+        per_user_limit: 1,
+        is_active: true,
+        title: "",
+        description: "",
+      });
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  if (!user) {
+    return (
+      <div className="p-6 bg-white/80 backdrop-blur-xl border-2 border-orange-200 rounded-2xl shadow-lg">
+        <p className="text-amber-900">Silakan masuk terlebih dahulu.</p>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <div className="h-10 w-1/3 bg-orange-100 rounded-lg animate-pulse" />
+        <div className="h-24 w-full bg-orange-50 border-2 border-orange-200 rounded-xl animate-pulse" />
+        <div className="h-96 w-full bg-orange-50 border-2 border-orange-200 rounded-xl animate-pulse" />
+      </div>
+    );
+  }
+
+  const promoStats = promotionsData?.promotion_statistics || { total_promotions: 0, active_promotions: 0, upcoming_promotions: 0, expired_promotions: 0, total_discount_given: 0 };
+  const couponStats = couponsData?.coupon_statistics || { total_coupons: 0, active_coupons: 0, expired_coupons: 0, used_coupons: 0, total_discount_granted: 0 };
+  const promotions = promotionsData?.promotions || [];
+  const coupons = couponsData?.coupons || [];
+  const couponRedemptions = couponsData?.coupon_redemptions || [];
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -183,6 +290,131 @@ export default function PromotionsPage() {
         </button>
       </div>
 
+      {/* Create Form Modal */}
+      {showCreateForm && (
+        <div className="bg-white/90 backdrop-blur-xl border-2 border-orange-200 rounded-2xl shadow-2xl p-6 animate-fade-in">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-bold text-amber-900 flex items-center gap-2">
+              <span>➕</span>
+              <span>Buat {activeTab === "promotions" ? "Promosi" : "Kupon"} Baru</span>
+            </h2>
+            <button onClick={() => setShowCreateForm(false)} className="w-8 h-8 rounded-lg bg-orange-100 hover:bg-orange-200 flex items-center justify-center transition-colors">
+              <svg className="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          {activeTab === "promotions" ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-semibold text-amber-900">Nama Promosi</label>
+                <input value={promoForm.name} onChange={(e) => setPromoForm({ ...promoForm, name: e.target.value })} className="w-full px-3 py-2 bg-orange-50 border-2 border-orange-200 rounded-lg" />
+              </div>
+              <div>
+                <label className="text-sm font-semibold text-amber-900">Tipe Diskon</label>
+                <select value={promoForm.type} onChange={(e) => setPromoForm({ ...promoForm, type: e.target.value })} className="w-full px-3 py-2 bg-orange-50 border-2 border-orange-200 rounded-lg">
+                  <option value="percentage">Persentase (%)</option>
+                  <option value="fixed">Nominal (Rp)</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-sm font-semibold text-amber-900">Nilai Diskon</label>
+                <input type="number" value={promoForm.value} onChange={(e) => setPromoForm({ ...promoForm, value: Number(e.target.value) })} className="w-full px-3 py-2 bg-orange-50 border-2 border-orange-200 rounded-lg" />
+              </div>
+              <div>
+                <label className="text-sm font-semibold text-amber-900">Aktif?</label>
+                <div className="flex items-center gap-2">
+                  <input type="checkbox" checked={promoForm.is_active} onChange={(e) => setPromoForm({ ...promoForm, is_active: e.target.checked })} />
+                  <span className="text-sm text-amber-800">Promosi aktif</span>
+                </div>
+              </div>
+              <div>
+                <label className="text-sm font-semibold text-amber-900">Mulai</label>
+                <input type="datetime-local" value={promoForm.start_at} onChange={(e) => setPromoForm({ ...promoForm, start_at: e.target.value })} className="w-full px-3 py-2 bg-orange-50 border-2 border-orange-200 rounded-lg" />
+              </div>
+              <div>
+                <label className="text-sm font-semibold text-amber-900">Berakhir</label>
+                <input type="datetime-local" value={promoForm.end_at} onChange={(e) => setPromoForm({ ...promoForm, end_at: e.target.value })} className="w-full px-3 py-2 bg-orange-50 border-2 border-orange-200 rounded-lg" />
+              </div>
+              <div className="md:col-span-2">
+                <label className="text-sm font-semibold text-amber-900">Deskripsi</label>
+                <textarea value={promoForm.description} onChange={(e) => setPromoForm({ ...promoForm, description: e.target.value })} className="w-full px-3 py-2 bg-orange-50 border-2 border-orange-200 rounded-lg"></textarea>
+              </div>
+              <div className="md:col-span-2">
+                <label className="text-sm font-semibold text-amber-900">Banner (opsional)</label>
+                <input value={promoForm.banner} onChange={(e) => setPromoForm({ ...promoForm, banner: e.target.value })} className="w-full px-3 py-2 bg-orange-50 border-2 border-orange-200 rounded-lg" />
+              </div>
+              <div className="md:col-span-2 flex justify-end gap-2">
+                <button onClick={() => setShowCreateForm(false)} className="px-4 py-2 bg-orange-100 text-orange-700 rounded-lg font-semibold text-sm hover:bg-orange-200 transition-colors">Batal</button>
+                <button onClick={createPromotion} className="px-4 py-2 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-lg font-semibold text-sm hover:shadow-lg transition-all">Simpan Promosi</button>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-semibold text-amber-900">Kode Kupon</label>
+                <input value={couponForm.code} onChange={(e) => setCouponForm({ ...couponForm, code: e.target.value })} className="w-full px-3 py-2 bg-orange-50 border-2 border-orange-200 rounded-lg" />
+              </div>
+              <div>
+                <label className="text-sm font-semibold text-amber-900">Tipe Diskon</label>
+                <select value={couponForm.type} onChange={(e) => setCouponForm({ ...couponForm, type: e.target.value })} className="w-full px-3 py-2 bg-orange-50 border-2 border-orange-200 rounded-lg">
+                  <option value="percentage">Persentase (%)</option>
+                  <option value="fixed">Nominal (Rp)</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-sm font-semibold text-amber-900">Nilai Diskon</label>
+                <input type="number" value={couponForm.value} onChange={(e) => setCouponForm({ ...couponForm, value: Number(e.target.value) })} className="w-full px-3 py-2 bg-orange-50 border-2 border-orange-200 rounded-lg" />
+              </div>
+              <div>
+                <label className="text-sm font-semibold text-amber-900">Max Diskon</label>
+                <input type="number" value={couponForm.max_discount} onChange={(e) => setCouponForm({ ...couponForm, max_discount: Number(e.target.value) })} className="w-full px-3 py-2 bg-orange-50 border-2 border-orange-200 rounded-lg" />
+              </div>
+              <div>
+                <label className="text-sm font-semibold text-amber-900">Min. Belanja</label>
+                <input type="number" value={couponForm.min_order_amount} onChange={(e) => setCouponForm({ ...couponForm, min_order_amount: Number(e.target.value) })} className="w-full px-3 py-2 bg-orange-50 border-2 border-orange-200 rounded-lg" />
+              </div>
+              <div>
+                <label className="text-sm font-semibold text-amber-900">Batas Pemakaian</label>
+                <input type="number" value={couponForm.usage_limit} onChange={(e) => setCouponForm({ ...couponForm, usage_limit: Number(e.target.value) })} className="w-full px-3 py-2 bg-orange-50 border-2 border-orange-200 rounded-lg" />
+              </div>
+              <div>
+                <label className="text-sm font-semibold text-amber-900">Batas / Pengguna</label>
+                <input type="number" value={couponForm.per_user_limit} onChange={(e) => setCouponForm({ ...couponForm, per_user_limit: Number(e.target.value) })} className="w-full px-3 py-2 bg-orange-50 border-2 border-orange-200 rounded-lg" />
+              </div>
+              <div>
+                <label className="text-sm font-semibold text-amber-900">Aktif?</label>
+                <div className="flex items-center gap-2">
+                  <input type="checkbox" checked={couponForm.is_active} onChange={(e) => setCouponForm({ ...couponForm, is_active: e.target.checked })} />
+                  <span className="text-sm text-amber-800">Kupon aktif</span>
+                </div>
+              </div>
+              <div>
+                <label className="text-sm font-semibold text-amber-900">Mulai</label>
+                <input type="datetime-local" value={couponForm.start_at} onChange={(e) => setCouponForm({ ...couponForm, start_at: e.target.value })} className="w-full px-3 py-2 bg-orange-50 border-2 border-orange-200 rounded-lg" />
+              </div>
+              <div>
+                <label className="text-sm font-semibold text-amber-900">Berakhir</label>
+                <input type="datetime-local" value={couponForm.end_at} onChange={(e) => setCouponForm({ ...couponForm, end_at: e.target.value })} className="w-full px-3 py-2 bg-orange-50 border-2 border-orange-200 rounded-lg" />
+              </div>
+              <div className="md:col-span-2">
+                <label className="text-sm font-semibold text-amber-900">Judul</label>
+                <input value={couponForm.title} onChange={(e) => setCouponForm({ ...couponForm, title: e.target.value })} className="w-full px-3 py-2 bg-orange-50 border-2 border-orange-200 rounded-lg" />
+              </div>
+              <div className="md:col-span-2">
+                <label className="text-sm font-semibold text-amber-900">Deskripsi</label>
+                <textarea value={couponForm.description} onChange={(e) => setCouponForm({ ...couponForm, description: e.target.value })} className="w-full px-3 py-2 bg-orange-50 border-2 border-orange-200 rounded-lg"></textarea>
+              </div>
+              <div className="md:col-span-2 flex justify-end gap-2">
+                <button onClick={() => setShowCreateForm(false)} className="px-4 py-2 bg-orange-100 text-orange-700 rounded-lg font-semibold text-sm hover:bg-orange-200 transition-colors">Batal</button>
+                <button onClick={createCoupon} className="px-4 py-2 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-lg font-semibold text-sm hover:shadow-lg transition-all">Simpan Kupon</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Tab Navigation */}
       <div className="bg-white/80 backdrop-blur-xl border-2 border-orange-200 rounded-xl shadow-lg p-2 flex gap-2">
         <button
@@ -200,7 +432,7 @@ export default function PromotionsPage() {
               activeTab === "promotions" ? "bg-white text-orange-600" : "bg-orange-200 text-orange-800"
             }`}
           >
-            {promoData.promotion_statistics.active_promotions}
+            {promoStats.active_promotions}
           </span>
         </button>
         <button
@@ -218,7 +450,7 @@ export default function PromotionsPage() {
               activeTab === "coupons" ? "bg-white text-orange-600" : "bg-orange-200 text-orange-800"
             }`}
           >
-            {promoData.coupon_statistics.active_coupons}
+            {couponStats.active_coupons}
           </span>
         </button>
       </div>
@@ -229,31 +461,31 @@ export default function PromotionsPage() {
           {[
             {
               label: "Total Promosi",
-              value: promoData.promotion_statistics.total_promotions,
+              value: promoStats.total_promotions,
               icon: "🎯",
               color: "from-blue-400 to-cyan-500",
             },
             {
               label: "Aktif",
-              value: promoData.promotion_statistics.active_promotions,
+              value: promoStats.active_promotions,
               icon: "✅",
               color: "from-green-400 to-emerald-500",
             },
             {
               label: "Akan Datang",
-              value: promoData.promotion_statistics.upcoming_promotions,
+              value: promoStats.upcoming_promotions,
               icon: "⏰",
               color: "from-blue-400 to-indigo-500",
             },
             {
               label: "Kadaluarsa",
-              value: promoData.promotion_statistics.expired_promotions,
+              value: promoStats.expired_promotions,
               icon: "⏱️",
               color: "from-red-400 to-pink-500",
             },
             {
               label: "Total Diskon Diberikan",
-              value: formatCurrency(promoData.promotion_statistics.total_discount_given),
+              value: formatCurrency(promoStats.total_discount_given),
               icon: "💰",
               color: "from-orange-400 to-red-500",
               isLarge: true,
@@ -284,31 +516,31 @@ export default function PromotionsPage() {
           {[
             {
               label: "Total Kupon",
-              value: promoData.coupon_statistics.total_coupons,
+              value: couponStats.total_coupons,
               icon: "🎫",
               color: "from-purple-400 to-pink-500",
             },
             {
               label: "Aktif",
-              value: promoData.coupon_statistics.active_coupons,
+              value: couponStats.active_coupons,
               icon: "✅",
               color: "from-green-400 to-emerald-500",
             },
             {
               label: "Kadaluarsa",
-              value: promoData.coupon_statistics.expired_coupons,
+              value: couponStats.expired_coupons,
               icon: "⏱️",
               color: "from-red-400 to-pink-500",
             },
             {
               label: "Terpakai",
-              value: promoData.coupon_statistics.used_coupons,
+              value: couponStats.used_coupons,
               icon: "✨",
               color: "from-blue-400 to-indigo-500",
             },
             {
               label: "Total Diskon",
-              value: formatCurrency(promoData.coupon_statistics.total_discount_granted),
+              value: formatCurrency(couponStats.total_discount_granted),
               icon: "💰",
               color: "from-orange-400 to-red-500",
               isLarge: true,
@@ -339,7 +571,7 @@ export default function PromotionsPage() {
       {/* Promotions Tab Content */}
       {activeTab === "promotions" && (
         <div className="space-y-4 animate-fade-in">
-          {promoData.promotions.map((promo, idx) => {
+          {promotions.map((promo: any, idx: number) => {
             const status = getPromotionStatus(promo.start_at, promo.end_at, promo.is_active);
 
             return (
@@ -407,7 +639,7 @@ export default function PromotionsPage() {
                       <span>Diterapkan Pada</span>
                     </p>
                     <div className="flex flex-wrap gap-2">
-                      {promo.applied_to.map((item, itemIdx) => (
+                      {promo.applied_to.map((item: any, itemIdx: number) => (
                         <div
                           key={itemIdx}
                           className="px-3 py-2 bg-gradient-to-r from-orange-100 to-amber-100 border-2 border-orange-300 rounded-lg flex items-center gap-2"
@@ -466,17 +698,17 @@ export default function PromotionsPage() {
                       <span>Statistik</span>
                     </button>
                     {promo.is_active ? (
-                      <button className="px-4 py-2 bg-red-100 text-red-700 rounded-lg font-semibold text-sm hover:bg-red-200 transition-colors flex items-center gap-2">
+                      <button onClick={() => togglePromotionActive(promo.id, false)} className="px-4 py-2 bg-red-100 text-red-700 rounded-lg font-semibold text-sm hover:bg-red-200 transition-colors flex items-center gap-2">
                         <span>⏸️</span>
                         <span>Nonaktifkan</span>
                       </button>
                     ) : (
-                      <button className="px-4 py-2 bg-green-100 text-green-700 rounded-lg font-semibold text-sm hover:bg-green-200 transition-colors flex items-center gap-2">
+                      <button onClick={() => togglePromotionActive(promo.id, true)} className="px-4 py-2 bg-green-100 text-green-700 rounded-lg font-semibold text-sm hover:bg-green-200 transition-colors flex items-center gap-2">
                         <span>▶️</span>
                         <span>Aktifkan</span>
                       </button>
                     )}
-                    <button className="px-4 py-2 bg-orange-100 text-orange-700 rounded-lg font-semibold text-sm hover:bg-orange-200 transition-colors flex items-center gap-2">
+                    <button onClick={() => deletePromotion(promo.id)} className="px-4 py-2 bg-orange-100 text-orange-700 rounded-lg font-semibold text-sm hover:bg-orange-200 transition-colors flex items-center gap-2">
                       <span>🗑️</span>
                       <span>Hapus</span>
                     </button>
@@ -493,7 +725,7 @@ export default function PromotionsPage() {
         <div className="space-y-6 animate-fade-in">
           {/* Coupons Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {promoData.coupons.map((coupon, idx) => {
+            {coupons.map((coupon: any, idx: number) => {
               const status = getPromotionStatus(coupon.start_at, coupon.end_at, coupon.is_active);
               const usagePercent = getCouponUsagePercent(coupon.redemption_count, coupon.usage_limit);
 
@@ -520,7 +752,15 @@ export default function PromotionsPage() {
                         <span className={`px-3 py-1 rounded-full text-xs font-bold border-2 ${status.color}`}>
                           {status.label}
                         </span>
-                        <span className="text-4xl">🎫</span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => toggleCouponActive(coupon.id, !coupon.is_active)}
+                            className={`px-2 py-1 rounded-lg text-xs font-bold ${coupon.is_active ? "bg-white text-purple-600" : "bg-white/70 text-purple-800"}`}
+                          >
+                            {coupon.is_active ? "Nonaktifkan" : "Aktifkan"}
+                          </button>
+                          <span className="text-4xl">🎫</span>
+                        </div>
                       </div>
 
                       <h3 className="text-2xl font-bold text-white mb-2">{coupon.title}</h3>
@@ -603,7 +843,7 @@ export default function PromotionsPage() {
                         <span>📊</span>
                         <span>Detail</span>
                       </button>
-                      <button className="flex-1 px-3 py-2 bg-orange-100 text-orange-700 rounded-lg font-semibold text-sm hover:bg-orange-200 transition-colors flex items-center justify-center gap-2">
+                      <button onClick={() => deleteCoupon(coupon.id)} className="flex-1 px-3 py-2 bg-orange-100 text-orange-700 rounded-lg font-semibold text-sm hover:bg-orange-200 transition-colors flex items-center justify-center gap-2">
                         <span>🗑️</span>
                         <span>Hapus</span>
                       </button>
@@ -622,7 +862,7 @@ export default function PromotionsPage() {
             </div>
 
             <div className="space-y-3">
-              {promoData.coupon_redemptions.map((redemption, idx) => (
+              {couponRedemptions.map((redemption: any, idx: number) => (
                 <div
                   key={idx}
                   className="flex items-center justify-between p-4 bg-orange-50 rounded-lg hover:bg-orange-100 transition-colors"
@@ -663,7 +903,7 @@ export default function PromotionsPage() {
         </div>
 
         <div className="space-y-3">
-          {promoData.activity_log.map((activity) => (
+          {combinedActivities.map((activity: any) => (
             <div
               key={activity.id}
               className="flex items-start gap-4 p-4 bg-orange-50 rounded-lg hover:bg-orange-100 transition-colors"

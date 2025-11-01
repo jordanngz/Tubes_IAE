@@ -1,216 +1,43 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-
-// Order data placeholder
-const orderData = {
-  store_info: {
-    store_id: null,
-    store_name: "Nama Toko Placeholder",
-    total_orders: 0,
-    total_revenue: 0.0,
-    pending_orders: 0,
-    processing_orders: 0,
-    completed_orders: 0,
-  },
-  orders: [
-    {
-      order_shop_id: 1,
-      order_id: 1,
-      store_id: null,
-      order_number: "ORD-20251101-001",
-      buyer_name: "Ahmad Hidayat",
-      buyer_contact: "+62-812-3456-7890",
-      status: "pending",
-      shipping_method: "JNE REG",
-      shipping_cost: 10000.0,
-      tracking_number: null,
-      subtotal: 75000.0,
-      discount_total: 5000.0,
-      total: 80000.0,
-      payment_status: "unpaid",
-      payment_method: "Midtrans - Bank Transfer",
-      order_date: "2025-11-01T08:30:00Z",
-      updated_at: "2025-11-01T08:30:00Z",
-      shipping_address: {
-        recipient_name: "Ahmad Hidayat",
-        phone: "+62-812-3456-7890",
-        address_line1: "Jl. Sudirman No.123",
-        city: "Jakarta Selatan",
-        state: "DKI Jakarta",
-        postal_code: "12190",
-        country: "ID",
-      },
-      items: [
-        {
-          order_item_id: 1,
-          product_id: 1,
-          product_name: "Sarden Pedas Premium 350g",
-          product_sku: "SKU-SP350",
-          quantity: 2,
-          price: 25000.0,
-          total: 50000.0,
-          attributes: { flavor: "Pedas", weight: "350g" },
-          product_image: "/images/products/placeholder-1.jpg",
-        },
-        {
-          order_item_id: 2,
-          product_id: 2,
-          product_name: "Tuna Kaleng Original 200g",
-          product_sku: "SKU-TU200",
-          quantity: 1,
-          price: 25000.0,
-          total: 25000.0,
-          attributes: { flavor: "Original", weight: "200g" },
-          product_image: "/images/products/placeholder-2.jpg",
-        },
-      ],
-      payment_info: {
-        payment_id: 1,
-        provider: "Midtrans",
-        provider_ref: "MTPAY-1234567890",
-        amount: 80000.0,
-        status: "pending",
-        paid_at: null,
-        currency: "IDR",
-      },
-      shipment_info: {
-        shipment_id: null,
-        carrier_name: "JNE",
-        service_code: "REG",
-        tracking_number: null,
-        status: "created",
-        shipped_at: null,
-        delivered_at: null,
-        cost: 10000.0,
-        events: [],
-      },
-      buyer_notes: "Mohon kirim cepat ya, butuh untuk acara besok.",
-      seller_notes: "",
-      actions: {
-        mark_as_processing: true,
-        mark_as_shipped: false,
-        mark_as_delivered: false,
-        cancel_order: true,
-        print_invoice: true,
-      },
-    },
-    {
-      order_shop_id: 2,
-      order_id: 2,
-      store_id: null,
-      order_number: "ORD-20251031-087",
-      buyer_name: "Siti Nurhaliza",
-      buyer_contact: "+62-856-7890-1234",
-      status: "processing",
-      shipping_method: "JNT Express",
-      shipping_cost: 12000.0,
-      tracking_number: "JNT1234567890",
-      subtotal: 105000.0,
-      discount_total: 10000.0,
-      total: 107000.0,
-      payment_status: "paid",
-      payment_method: "Midtrans - GoPay",
-      order_date: "2025-10-31T14:20:00Z",
-      updated_at: "2025-11-01T09:00:00Z",
-      shipping_address: {
-        recipient_name: "Siti Nurhaliza",
-        phone: "+62-856-7890-1234",
-        address_line1: "Jl. Gatot Subroto No.45",
-        city: "Bandung",
-        state: "Jawa Barat",
-        postal_code: "40262",
-        country: "ID",
-      },
-      items: [
-        {
-          order_item_id: 3,
-          product_id: 3,
-          product_name: "Kornet Sapi Original 200g",
-          product_sku: "SKU-KO200",
-          quantity: 3,
-          price: 35000.0,
-          total: 105000.0,
-          attributes: { flavor: "Original", weight: "200g" },
-          product_image: "/images/products/placeholder-3.jpg",
-        },
-      ],
-      payment_info: {
-        payment_id: 2,
-        provider: "Midtrans",
-        provider_ref: "MTPAY-0987654321",
-        amount: 107000.0,
-        status: "paid",
-        paid_at: "2025-10-31T14:25:00Z",
-        currency: "IDR",
-      },
-      shipment_info: {
-        shipment_id: 2,
-        carrier_name: "J&T Express",
-        service_code: "REG",
-        tracking_number: "JNT1234567890",
-        status: "in_transit",
-        shipped_at: "2025-11-01T09:00:00Z",
-        delivered_at: null,
-        cost: 12000.0,
-        events: [
-          {
-            event_id: 1,
-            status: "picked_up",
-            description: "Paket telah diambil oleh kurir.",
-            occurred_at: "2025-11-01T09:00:00Z",
-          },
-          {
-            event_id: 2,
-            status: "in_transit",
-            description: "Paket dalam perjalanan ke kota tujuan.",
-            occurred_at: "2025-11-01T12:30:00Z",
-          },
-        ],
-      },
-      buyer_notes: "",
-      seller_notes: "Pesanan sudah dikemas dengan baik.",
-      actions: {
-        mark_as_processing: false,
-        mark_as_shipped: false,
-        mark_as_delivered: true,
-        cancel_order: false,
-        print_invoice: true,
-      },
-    },
-  ],
-  order_statistics: {
-    total_orders: 25,
-    pending: 5,
-    processing: 8,
-    shipped: 7,
-    completed: 4,
-    canceled: 1,
-    total_revenue: 1200000.0,
-    average_order_value: 48000.0,
-  },
-  activity_log: [
-    {
-      id: 1,
-      type: "update_order_status",
-      description: "Pesanan ORD-20251101-001 diubah menjadi 'processing'.",
-      timestamp: "2025-11-01T02:00:00Z",
-    },
-    {
-      id: 2,
-      type: "shipment_created",
-      description: "Pengiriman dibuat untuk pesanan ORD-20251031-087 via JNT Express.",
-      timestamp: "2025-11-01T03:00:00Z",
-    },
-  ],
-};
+import { useAuth } from "@/lib/auth-context";
 
 export default function OrderManagementPage() {
+  const { user } = useAuth();
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedOrder, setSelectedOrder] = useState<number | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<string | null>(null);
   const [showShipmentModal, setShowShipmentModal] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [orderData, setOrderData] = useState<any | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    async function load() {
+      try {
+        if (!user) return;
+        const token = await user.getIdToken();
+        const res = await fetch("/api/seller/orders", { headers: { Authorization: `Bearer ${token}` } });
+        if (!mounted) return;
+        if (!res.ok) {
+          setOrderData(null);
+        } else {
+          const data = await res.json();
+          setOrderData(data);
+        }
+      } catch (e) {
+        console.error(e);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }
+    load();
+    return () => {
+      mounted = false;
+    };
+  }, [user]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("id-ID", {
@@ -255,6 +82,68 @@ export default function OrderManagementPage() {
     };
     return icons[status] || "📦";
   };
+
+  const filteredOrders = useMemo(() => {
+    const list: any[] = orderData?.orders || [];
+    const q = searchQuery.trim().toLowerCase();
+    let items = list.filter((o) =>
+      !q ? true : o.order_number?.toLowerCase().includes(q) || o.buyer_name?.toLowerCase().includes(q)
+    );
+    if (filterStatus !== "all") items = items.filter((o) => o.status === filterStatus);
+    return items;
+  }, [orderData, searchQuery, filterStatus]);
+
+  const updateOrder = async (id: string, payload: any) => {
+    if (!user) return;
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/seller/orders/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) return;
+      const updated = await res.json();
+      setOrderData((prev: any) => ({
+        ...prev,
+        orders: (prev?.orders || []).map((o: any) => (o.id === id ? { ...o, ...updated } : o)),
+      }));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const markProcessing = (id: string) => updateOrder(id, { status: "processing" });
+  const markShipped = (id: string, tracking_number?: string) =>
+    updateOrder(id, { status: "shipped", shipment_info: { status: "in_transit", tracking_number } });
+  const markDelivered = (id: string) => updateOrder(id, { status: "completed", shipment_info: { status: "delivered" } });
+  const cancelOrder = (id: string) => updateOrder(id, { status: "canceled" });
+
+  if (!user) {
+    return (
+      <div className="p-6 bg-white/80 backdrop-blur-xl border-2 border-orange-200 rounded-2xl shadow-lg">
+        <p className="text-amber-900">Silakan masuk terlebih dahulu.</p>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <div className="h-10 w-1/3 bg-orange-100 rounded-lg animate-pulse" />
+        <div className="h-24 w-full bg-orange-50 border-2 border-orange-200 rounded-xl animate-pulse" />
+        <div className="h-96 w-full bg-orange-50 border-2 border-orange-200 rounded-xl animate-pulse" />
+      </div>
+    );
+  }
+
+  if (!orderData) {
+    return (
+      <div className="p-6 bg-white/80 backdrop-blur-xl border-2 border-orange-200 rounded-2xl shadow-lg">
+        <p className="text-amber-900">Data pesanan tidak tersedia. Pastikan toko telah dibuat.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -403,9 +292,9 @@ export default function OrderManagementPage() {
 
       {/* Orders List */}
       <div className="space-y-4 animate-fade-in">
-        {orderData.orders.map((order) => (
+        {filteredOrders.map((order: any) => (
           <div
-            key={order.order_shop_id}
+            key={order.id}
             className="bg-white/80 backdrop-blur-xl border-2 border-orange-200 rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden"
           >
             {/* Order Header */}
@@ -495,7 +384,7 @@ export default function OrderManagementPage() {
                   <span>Produk Dipesan</span>
                 </p>
                 <div className="space-y-2">
-                  {order.items.map((item) => (
+                  {order.items.map((item: any) => (
                     <div
                       key={item.order_item_id}
                       className="flex items-center gap-3 p-3 bg-orange-50 rounded-lg hover:bg-orange-100 transition-colors"
@@ -534,8 +423,8 @@ export default function OrderManagementPage() {
                   {/* Tracking Timeline */}
                   {order.shipment_info.events.length > 0 && (
                     <div className="space-y-2">
-                      {order.shipment_info.events.map((event, idx) => (
-                        <div key={event.event_id} className="flex items-start gap-3">
+                      {order.shipment_info.events.map((event: any, idx: number) => (
+                        <div key={event.event_id || idx} className="flex items-start gap-3">
                           <div className="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center text-xs font-bold shrink-0">
                             {idx + 1}
                           </div>
@@ -579,32 +468,32 @@ export default function OrderManagementPage() {
 
               {/* Actions */}
               <div className="flex flex-wrap gap-2 pt-2 border-t border-orange-200">
-                {order.actions.mark_as_processing && (
-                  <button className="px-4 py-2 bg-blue-500 text-white rounded-lg font-semibold text-sm hover:bg-blue-600 transition-colors flex items-center gap-2">
+                {(order.status === "pending") && (
+                  <button onClick={() => markProcessing(order.id)} className="px-4 py-2 bg-blue-500 text-white rounded-lg font-semibold text-sm hover:bg-blue-600 transition-colors flex items-center gap-2">
                     <span>🔄</span>
                     <span>Proses Pesanan</span>
                   </button>
                 )}
-                {order.actions.mark_as_shipped && (
-                  <button className="px-4 py-2 bg-purple-500 text-white rounded-lg font-semibold text-sm hover:bg-purple-600 transition-colors flex items-center gap-2">
+                {(order.status === "processing") && (
+                  <button onClick={() => markShipped(order.id, order?.shipment_info?.tracking_number)} className="px-4 py-2 bg-purple-500 text-white rounded-lg font-semibold text-sm hover:bg-purple-600 transition-colors flex items-center gap-2">
                     <span>🚚</span>
                     <span>Tandai Dikirim</span>
                   </button>
                 )}
-                {order.actions.mark_as_delivered && (
-                  <button className="px-4 py-2 bg-green-500 text-white rounded-lg font-semibold text-sm hover:bg-green-600 transition-colors flex items-center gap-2">
+                {(order.status === "shipped" || order.status === "in_transit") && (
+                  <button onClick={() => markDelivered(order.id)} className="px-4 py-2 bg-green-500 text-white rounded-lg font-semibold text-sm hover:bg-green-600 transition-colors flex items-center gap-2">
                     <span>✅</span>
                     <span>Pesanan Selesai</span>
                   </button>
                 )}
-                {order.actions.print_invoice && (
+                {true && (
                   <button className="px-4 py-2 bg-orange-500 text-white rounded-lg font-semibold text-sm hover:bg-orange-600 transition-colors flex items-center gap-2">
                     <span>🖨️</span>
                     <span>Cetak Invoice</span>
                   </button>
                 )}
-                {order.actions.cancel_order && (
-                  <button className="px-4 py-2 bg-red-100 text-red-700 rounded-lg font-semibold text-sm hover:bg-red-200 transition-colors flex items-center gap-2">
+                {(order.status === "pending") && (
+                  <button onClick={() => cancelOrder(order.id)} className="px-4 py-2 bg-red-100 text-red-700 rounded-lg font-semibold text-sm hover:bg-red-200 transition-colors flex items-center gap-2">
                     <span>❌</span>
                     <span>Batalkan</span>
                   </button>
@@ -627,7 +516,7 @@ export default function OrderManagementPage() {
         </div>
 
         <div className="space-y-3">
-          {orderData.activity_log.map((activity) => (
+          {orderData.activity_log.map((activity: any) => (
             <div
               key={activity.id}
               className="flex items-start gap-4 p-4 bg-orange-50 rounded-lg hover:bg-orange-100 transition-colors"

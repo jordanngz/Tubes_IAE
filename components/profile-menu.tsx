@@ -5,6 +5,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { listenAuth, logout } from "@/lib/auth"
 import { User } from "firebase/auth"
+import { auth } from "@/lib/firebase"
 
 export default function ProfileMenu() {
   const router = useRouter()
@@ -54,6 +55,18 @@ export default function ProfileMenu() {
       .join("")
       .toUpperCase()
       .slice(0, 2)
+  }
+
+  const goSellerMode = async () => {
+    try {
+      const token = await auth.currentUser?.getIdToken()
+      if (!token) return router.push("/login")
+      await fetch("/api/seller/role", { method: "POST", headers: { Authorization: `Bearer ${token}` } })
+      setIsOpen(false)
+      router.push("/seller/stores")
+    } catch (e) {
+      console.error(e)
+    }
   }
 
   return (
@@ -146,6 +159,12 @@ export default function ProfileMenu() {
                 </div>
 
                 <nav className="space-y-1">
+                  <button
+                    onClick={goSellerMode}
+                    className="w-full flex items-center gap-3 px-3 py-2 rounded-lg bg-gradient-to-r from-orange-500 to-red-600 text-white transition-colors text-sm font-semibold justify-center"
+                  >
+                    Masuk Mode Penjual
+                  </button>
                   <Link
                     href="/profile"
                     className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-amber-50 transition-colors text-sm text-slate-700"

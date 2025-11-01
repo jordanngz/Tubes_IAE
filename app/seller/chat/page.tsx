@@ -1,135 +1,132 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useAuth } from "@/lib/auth-context";
 
-// Chat & Communication data placeholder
-const chatData = {
-  store_info: {
-    store_id: null,
-    store_name: "Nama Toko Placeholder",
-    active_conversations: 3,
-    unread_messages: 5,
-    total_conversations: 20,
-    last_active_at: "2025-11-01T10:00:00Z",
-  },
-  conversation_list: [
-    {
-      conversation_id: 1,
-      buyer_id: null,
-      buyer_name: "Nama Pembeli Placeholder",
-      buyer_avatar: "/images/users/avatar-placeholder.jpg",
-      last_message_preview: "Terima kasih ya, pesanannya sudah sampai!",
-      last_message_time: "2025-11-01T09:45:00Z",
-      unread_count: 1,
-      order_reference: {
-        order_id: null,
-        order_number: "ORD-PLACEHOLDER-001",
-        status: "delivered",
-      },
-      is_archived: false,
-      is_flagged: false,
-    },
-    {
-      conversation_id: 2,
-      buyer_id: null,
-      buyer_name: "Nama Pembeli Placeholder 2",
-      buyer_avatar: "/images/users/avatar-placeholder-2.jpg",
-      last_message_preview: "Apakah stok produknya masih ada?",
-      last_message_time: "2025-11-01T08:10:00Z",
-      unread_count: 0,
-      order_reference: null,
-      is_archived: false,
-      is_flagged: false,
-    },
-  ],
-  conversation_detail: {
-    conversation_id: null,
-    buyer: {
-      buyer_id: null,
-      name: "Nama Pembeli Placeholder",
-      avatar: "/images/users/avatar-placeholder.jpg",
-      joined_at: "2025-10-01T00:00:00Z",
-    },
-    order_reference: {
-      order_id: null,
-      order_number: "ORD-PLACEHOLDER-001",
-      status: "shipped",
-      total_amount: 85000.0,
-    },
-    messages: [
-      {
-        message_id: 1,
-        sender_role: "buyer",
-        sender_name: "Nama Pembeli Placeholder",
-        content: "Halo, apakah produk ini masih tersedia?",
-        attachments: [],
-        is_read: true,
-        sent_at: "2025-11-01T08:00:00Z",
-      },
-      {
-        message_id: 2,
-        sender_role: "seller",
-        sender_name: "Nama Toko Placeholder",
-        content: "Halo! Ya, masih tersedia. Bisa langsung checkout ya 😊",
-        attachments: [],
-        is_read: true,
-        sent_at: "2025-11-01T08:02:00Z",
-      },
-      {
-        message_id: 3,
-        sender_role: "buyer",
-        sender_name: "Nama Pembeli Placeholder",
-        content: "Oke, saya checkout sekarang.",
-        attachments: [],
-        is_read: true,
-        sent_at: "2025-11-01T08:05:00Z",
-      },
-    ],
-  },
-  communication_statistics: {
-    total_conversations: 20,
-    active_today: 5,
-    avg_response_time_minutes: 15,
-    response_rate_percent: 92.5,
-    unread_messages: 5,
-    flagged_conversations: 1,
-  },
-  quick_reply_templates: [
-    {
-      template_id: 1,
-      title: "Terima kasih pembelian",
-      content: "Terima kasih telah berbelanja di toko kami! Semoga puas dengan produk kami 😊",
-      is_active: true,
-    },
-    {
-      template_id: 2,
-      title: "Pesanan dikirim",
-      content: "Pesanan Anda sudah dikirim hari ini. Nomor resi akan kami kirim segera.",
-      is_active: true,
-    },
-  ],
-  automated_replies: [
-    {
-      auto_reply_id: 1,
-      trigger_type: "first_message",
-      message: "Halo! Terima kasih telah menghubungi toko kami. Kami akan membalas pesan Anda secepatnya 🙌",
-      is_active: true,
-    },
-    {
-      auto_reply_id: 2,
-      trigger_type: "after_hours",
-      message: "Toko kami sedang tutup. Kami akan merespon pesan Anda di jam operasional (08:00 - 20:00).",
-      is_active: true,
-    },
-  ],
+type Conversation = {
+  id: string;
+  buyer_id?: string | null;
+  buyer_name: string;
+  buyer_avatar?: string | null;
+  last_message_preview?: string;
+  last_message_time?: any;
+  unread_count?: number;
+  order_reference?: any | null;
+  is_archived?: boolean;
+  is_flagged?: boolean;
+};
+
+type Message = {
+  id?: string;
+  sender_role: "buyer" | "seller";
+  content: string;
+  is_read: boolean;
+  sent_at: any;
 };
 
 export default function ChatPage() {
-  const [selectedConversation, setSelectedConversation] = useState<number | null>(1);
+  const { user } = useAuth();
+  const [summary, setSummary] = useState({
+    total_conversations: 0,
+    active_today: 0,
+    avg_response_time_minutes: 0,
+    response_rate_percent: 0,
+    unread_messages: 0,
+    flagged_conversations: 0,
+  });
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
+  const [selectedConvDetail, setSelectedConvDetail] = useState<any>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [templates, setTemplates] = useState<any[]>([]);
+  const [settings, setSettings] = useState<any>({ preferences: {}, automated_replies: [] });
   const [messageInput, setMessageInput] = useState("");
   const [showTemplates, setShowTemplates] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [loading, setLoading] = useState(true);
+
+  const authFetch = async (url: string, init?: RequestInit) => {
+    const idToken = user ? await user.getIdToken() : "";
+    const hasBody = !!init?.body;
+    const res = await fetch(url, {
+      ...init,
+      headers: {
+        ...(init?.headers || {}),
+        Authorization: `Bearer ${idToken}`,
+        ...(hasBody ? { "Content-Type": "application/json" } : {}),
+      },
+    });
+    if (!res.ok) {
+      try {
+        const text = await res.text();
+        throw new Error(text || `${res.status}`);
+      } catch (e) {
+        throw new Error(`${res.status}`);
+      }
+    }
+    return res.json();
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+    if (!user) return;
+    (async () => {
+      try {
+        setLoading(true);
+        const [sum, convs, temps, sets] = await Promise.all([
+          authFetch("/api/seller/chat/summary"),
+          authFetch(`/api/seller/chat/conversations?filter=${filterStatus}`),
+          authFetch("/api/seller/chat/templates"),
+          authFetch("/api/seller/chat/settings"),
+        ]);
+        if (!isMounted) return;
+        setSummary(sum.communication_statistics || summary);
+        setConversations((convs.conversations || []).map((c: any) => ({ ...c })));
+        setTemplates(temps.templates || []);
+        setSettings(sets.settings || { preferences: {}, automated_replies: [] });
+        // Auto-select first conversation
+        const firstId = (convs.conversations?.[0]?.id as string) || null;
+        setSelectedConversationId(firstId);
+      } catch (e) {
+        console.error("load chat data error", e);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    })();
+    return () => {
+      isMounted = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, filterStatus]);
+
+  useEffect(() => {
+    let active = true;
+    if (!user || !selectedConversationId) return;
+    (async () => {
+      try {
+        const data = await authFetch(`/api/seller/chat/conversations/${selectedConversationId}?limit=100`);
+        if (!active) return;
+        setSelectedConvDetail(data.conversation);
+        setMessages(data.messages || []);
+        // Mark read if there were unread
+        if (data.conversation?.unread_count > 0) {
+          await authFetch(`/api/seller/chat/conversations/${selectedConversationId}`, {
+            method: "PATCH",
+            body: JSON.stringify({ action: "mark_read" }),
+          });
+          // Update local state
+          setConversations((prev) => prev.map((c) => (c.id === selectedConversationId ? { ...c, unread_count: 0 } : c)));
+        }
+      } catch (e) {
+        console.error("load conversation error", e);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, selectedConversationId]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("id-ID", {
@@ -139,8 +136,44 @@ export default function ChatPage() {
     }).format(amount);
   };
 
-  const getTimeAgo = (dateString: string) => {
-    const date = new Date(dateString);
+  const selectedConversation = useMemo(() => {
+    return conversations.find((c) => c.id === selectedConversationId) || null;
+  }, [conversations, selectedConversationId]);
+
+  const onSelectConversation = (id: string) => {
+    setSelectedConversationId(id);
+  };
+
+  const sendMessage = async () => {
+    if (!selectedConversationId || !messageInput.trim()) return;
+    try {
+      const res = await authFetch(`/api/seller/chat/conversations/${selectedConversationId}/messages`, {
+        method: "POST",
+        body: JSON.stringify({ content: messageInput.trim() }),
+      });
+      setMessages((prev) => [...prev, { id: res.id, sender_role: "seller", content: messageInput.trim(), is_read: true, sent_at: res.sent_at || new Date() }]);
+      setMessageInput("");
+      // Update conversation's last preview and time locally
+      setConversations((prev) => prev.map((c) => (c.id === selectedConversationId ? { ...c, last_message_preview: res.content || messageInput.trim(), last_message_time: new Date() } : c)));
+    } catch (e) {
+      console.error("send message error", e);
+    }
+  };
+
+  const saveChatSettings = async () => {
+    try {
+      await authFetch(`/api/seller/chat/settings`, {
+        method: "PATCH",
+        body: JSON.stringify(settings),
+      });
+      setShowSettings(false);
+    } catch (e) {
+      console.error("save settings error", e);
+    }
+  };
+
+  const getTimeAgo = (value: any) => {
+    const date = value && typeof (value as any).toDate === "function" ? (value as any).toDate() : new Date(value);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffMins = Math.floor(diffMs / 60000);
@@ -164,7 +197,7 @@ export default function ChatPage() {
     return styles[status] || styles.pending;
   };
 
-  const selectedConv = chatData.conversation_list.find((c) => c.conversation_id === selectedConversation);
+  const selectedConv = selectedConversation;
 
   return (
     <div className="space-y-6">
@@ -200,37 +233,37 @@ export default function ChatPage() {
         {[
           {
             label: "Total Chat",
-            value: chatData.communication_statistics.total_conversations,
+            value: summary.total_conversations,
             icon: "💬",
             color: "from-blue-400 to-cyan-500",
           },
           {
             label: "Aktif Hari Ini",
-            value: chatData.communication_statistics.active_today,
+            value: summary.active_today,
             icon: "⚡",
             color: "from-orange-400 to-red-500",
           },
           {
             label: "Belum Dibaca",
-            value: chatData.communication_statistics.unread_messages,
+            value: summary.unread_messages,
             icon: "🔔",
             color: "from-red-400 to-pink-500",
           },
           {
             label: "Response Rate",
-            value: `${chatData.communication_statistics.response_rate_percent}%`,
+            value: `${summary.response_rate_percent}%`,
             icon: "📊",
             color: "from-green-400 to-emerald-500",
           },
           {
             label: "Avg Response",
-            value: `${chatData.communication_statistics.avg_response_time_minutes}m`,
+            value: `${summary.avg_response_time_minutes}m`,
             icon: "⏱️",
             color: "from-purple-400 to-pink-500",
           },
           {
             label: "Ditandai",
-            value: chatData.communication_statistics.flagged_conversations,
+            value: summary.flagged_conversations,
             icon: "🚩",
             color: "from-yellow-400 to-orange-500",
           },
@@ -291,12 +324,12 @@ export default function ChatPage() {
 
             {/* Conversation List */}
             <div className="h-[500px] overflow-y-auto">
-              {chatData.conversation_list.map((conv) => (
+              {conversations.map((conv: Conversation) => (
                 <div
-                  key={conv.conversation_id}
-                  onClick={() => setSelectedConversation(conv.conversation_id)}
+                  key={conv.id}
+                  onClick={() => onSelectConversation(conv.id)}
                   className={`p-4 border-b border-orange-100 cursor-pointer transition-all duration-300 hover:bg-orange-50 ${
-                    selectedConversation === conv.conversation_id
+                    selectedConversationId === conv.id
                       ? "bg-gradient-to-r from-orange-100 to-amber-100 border-l-4 border-l-orange-600"
                       : ""
                   }`}
@@ -305,11 +338,11 @@ export default function ChatPage() {
                     {/* Avatar */}
                     <div className="relative shrink-0">
                       <div className="w-12 h-12 rounded-full bg-gradient-to-br from-orange-400 to-red-500 flex items-center justify-center text-white font-bold text-xl shadow-md">
-                        {conv.buyer_name.charAt(0)}
+                        {conv.buyer_name?.charAt(0) || "?"}
                       </div>
-                      {conv.unread_count > 0 && (
+                      {(conv.unread_count || 0) > 0 && (
                         <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center animate-pulse">
-                          {conv.unread_count}
+                          {conv.unread_count || 0}
                         </span>
                       )}
                     </div>
@@ -318,7 +351,7 @@ export default function ChatPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-1">
                         <h3 className="font-bold text-amber-900 truncate">{conv.buyer_name}</h3>
-                        <span className="text-xs text-amber-700">{getTimeAgo(conv.last_message_time)}</span>
+                        <span className="text-xs text-amber-700">{getTimeAgo(conv.last_message_time || new Date())}</span>
                       </div>
                       <p className="text-sm text-amber-800 truncate mb-1">{conv.last_message_preview}</p>
                       {conv.order_reference && (
@@ -386,19 +419,17 @@ export default function ChatPage() {
                 </div>
 
                 {/* Order Reference Card */}
-                {chatData.conversation_detail.order_reference && (
+                {selectedConvDetail?.order_reference && (
                   <div className="mt-3 p-3 bg-white border-2 border-orange-200 rounded-xl">
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-xs text-amber-700 mb-1">Pesanan Terkait</p>
-                        <p className="font-bold text-amber-900">
-                          {chatData.conversation_detail.order_reference.order_number}
-                        </p>
+                        <p className="font-bold text-amber-900">{selectedConvDetail?.order_reference?.order_number}</p>
                       </div>
                       <div className="text-right">
                         <p className="text-xs text-amber-700 mb-1">Total</p>
                         <p className="font-bold text-orange-600">
-                          {formatCurrency(chatData.conversation_detail.order_reference.total_amount)}
+                          {formatCurrency(Number(selectedConvDetail?.order_reference?.total_amount || 0))}
                         </p>
                       </div>
                     </div>
@@ -408,9 +439,9 @@ export default function ChatPage() {
 
               {/* Messages Area */}
               <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gradient-to-b from-orange-50/30 to-amber-50/30">
-                {chatData.conversation_detail.messages.map((message) => (
+                {messages.map((message: Message, idx: number) => (
                   <div
-                    key={message.message_id}
+                    key={message.id || idx}
                     className={`flex ${message.sender_role === "seller" ? "justify-end" : "justify-start"}`}
                   >
                     <div
@@ -427,7 +458,7 @@ export default function ChatPage() {
                             message.sender_role === "seller" ? "text-orange-100" : "text-amber-600"
                           }`}
                         >
-                          {new Date(message.sent_at).toLocaleTimeString("id-ID", { timeStyle: "short" })}
+                          {new Date((message as any).sent_at?.toDate ? (message as any).sent_at.toDate() : message.sent_at).toLocaleTimeString("id-ID", { timeStyle: "short" })}
                         </span>
                         {message.sender_role === "seller" && message.is_read && (
                           <span className="text-orange-100">✓✓</span>
@@ -468,7 +499,7 @@ export default function ChatPage() {
                     rows={2}
                     className="flex-1 px-4 py-2 bg-orange-50 border-2 border-orange-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 resize-none text-sm"
                   />
-                  <button className="w-10 h-10 rounded-lg bg-gradient-to-r from-orange-500 to-red-600 text-white hover:shadow-lg flex items-center justify-center transition-all shrink-0">
+                  <button onClick={sendMessage} className="w-10 h-10 rounded-lg bg-gradient-to-r from-orange-500 to-red-600 text-white hover:shadow-lg flex items-center justify-center transition-all shrink-0">
                     <span className="text-xl">📤</span>
                   </button>
                 </div>
@@ -508,9 +539,9 @@ export default function ChatPage() {
             </div>
 
             <div className="space-y-3">
-              {chatData.quick_reply_templates.map((template) => (
+              {templates.map((template: any) => (
                 <div
-                  key={template.template_id}
+                  key={template.id}
                   className="p-4 bg-gradient-to-r from-orange-50 to-amber-50 border-2 border-orange-200 rounded-xl hover:shadow-md transition-all cursor-pointer"
                   onClick={() => {
                     setMessageInput(template.content);
@@ -520,7 +551,7 @@ export default function ChatPage() {
                   <div className="flex items-center justify-between mb-2">
                     <h4 className="font-bold text-amber-900">{template.title}</h4>
                     <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-bold border border-green-300">
-                      AKTIF
+                      {template.is_active ? "AKTIF" : "NONAKTIF"}
                     </span>
                   </div>
                   <p className="text-sm text-amber-800">{template.content}</p>
@@ -563,9 +594,9 @@ export default function ChatPage() {
                   <span>Balas Otomatis</span>
                 </h4>
                 <div className="space-y-3">
-                  {chatData.automated_replies.map((reply) => (
+                  {(settings.automated_replies || []).map((reply: any, idx: number) => (
                     <div
-                      key={reply.auto_reply_id}
+                      key={reply.auto_reply_id || reply.trigger_type || idx}
                       className="p-4 bg-orange-50 border-2 border-orange-200 rounded-xl"
                     >
                       <div className="flex items-center justify-between mb-2">
@@ -573,7 +604,18 @@ export default function ChatPage() {
                           {reply.trigger_type === "first_message" ? "🎯 Pesan Pertama" : "🌙 Diluar Jam Operasional"}
                         </span>
                         <label className="relative inline-flex items-center cursor-pointer">
-                          <input type="checkbox" checked={reply.is_active} className="sr-only peer" readOnly />
+                          <input
+                            type="checkbox"
+                            checked={!!reply.is_active}
+                            onChange={(e) => {
+                              const next = { ...(settings || {}) };
+                              next.automated_replies = (settings.automated_replies || []).map((r: any, i: number) =>
+                                i === idx ? { ...r, is_active: e.target.checked } : r
+                              );
+                              setSettings(next);
+                            }}
+                            className="sr-only peer"
+                          />
                           <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-orange-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-orange-500 peer-checked:to-red-600"></div>
                         </label>
                       </div>
@@ -591,10 +633,10 @@ export default function ChatPage() {
                 </h4>
                 <div className="space-y-3">
                   {[
-                    { id: "sound", label: "Suara Notifikasi", enabled: true },
-                    { id: "desktop", label: "Notifikasi Desktop", enabled: true },
-                    { id: "email", label: "Email Notifikasi", enabled: false },
-                    { id: "archive", label: "Auto Archive (30 hari)", enabled: true },
+                    { id: "sound", label: "Suara Notifikasi" },
+                    { id: "desktop", label: "Notifikasi Desktop" },
+                    { id: "email", label: "Email Notifikasi" },
+                    { id: "archive", label: "Auto Archive (30 hari)" },
                   ].map((pref) => (
                     <div
                       key={pref.id}
@@ -602,7 +644,15 @@ export default function ChatPage() {
                     >
                       <span className="font-semibold text-amber-900">{pref.label}</span>
                       <label className="relative inline-flex items-center cursor-pointer">
-                        <input type="checkbox" checked={pref.enabled} className="sr-only peer" readOnly />
+                        <input
+                          type="checkbox"
+                          checked={!!settings?.preferences?.[pref.id]}
+                          onChange={(e) => setSettings((prev: any) => ({
+                            ...prev,
+                            preferences: { ...(prev?.preferences || {}), [pref.id]: e.target.checked },
+                          }))}
+                          className="sr-only peer"
+                        />
                         <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-orange-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-orange-500 peer-checked:to-red-600"></div>
                       </label>
                     </div>
@@ -618,7 +668,7 @@ export default function ChatPage() {
                 >
                   Batal
                 </button>
-                <button className="px-6 py-3 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-lg font-semibold hover:shadow-lg transition-all">
+                <button onClick={saveChatSettings} className="px-6 py-3 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-lg font-semibold hover:shadow-lg transition-all">
                   💾 Simpan Pengaturan
                 </button>
               </div>

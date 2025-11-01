@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { auth } from "@/lib/firebase";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -19,6 +20,30 @@ type SellerSidebarProps = {
 export default function SellerSidebar({ isMobileOpen = false, onClose }: SellerSidebarProps) {
   const pathname = usePathname();
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
+  const [hasStore, setHasStore] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    async function checkStore() {
+      try {
+        const user = auth.currentUser;
+        if (!user) {
+          setHasStore(null);
+          return;
+        }
+        const token = await user.getIdToken();
+        const res = await fetch("/api/seller/store", { headers: { Authorization: `Bearer ${token}` } });
+        if (!mounted) return;
+        if (res.status === 404) setHasStore(false);
+        else setHasStore(true);
+      } catch (e) {
+        setHasStore(false);
+      }
+    }
+    checkStore();
+    // re-check when path changes (in case store gets created)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
 
   const menuItems: MenuItem[] = [
     { label: "Dashboard Utama", href: "/seller", icon: "🏠" },
@@ -61,12 +86,20 @@ export default function SellerSidebar({ isMobileOpen = false, onClose }: SellerS
         {menuItems.map((item) => {
           const active = isActive(item.href);
           const hovered = hoveredItem === item.href;
+          const isStorePage = item.href === "/seller/stores";
+          const disabled = hasStore === false && !isStorePage;
 
           return (
             <Link
               key={item.href}
               href={item.href}
-              onClick={onClose}
+              onClick={(e) => {
+                if (disabled) {
+                  e.preventDefault();
+                  return;
+                }
+                onClose?.();
+              }}
               onMouseEnter={() => setHoveredItem(item.href)}
               onMouseLeave={() => setHoveredItem(null)}
               className={`
@@ -75,6 +108,8 @@ export default function SellerSidebar({ isMobileOpen = false, onClose }: SellerS
                 ${
                   active
                     ? "bg-gradient-to-r from-orange-500 to-red-600 text-white shadow-md scale-105"
+                    : disabled
+                    ? "text-gray-400 cursor-not-allowed opacity-60"
                     : "text-amber-900 hover:bg-orange-50 hover:scale-105"
                 }
               `}
@@ -82,7 +117,7 @@ export default function SellerSidebar({ isMobileOpen = false, onClose }: SellerS
               <div className="flex items-center gap-3">
                 <span
                   className={`text-lg transition-transform duration-300 ${
-                    hovered ? "scale-125 rotate-12" : ""
+                    hovered && !disabled ? "scale-125 rotate-12" : ""
                   }`}
                 >
                   {item.icon}
@@ -98,6 +133,8 @@ export default function SellerSidebar({ isMobileOpen = false, onClose }: SellerS
                   ${
                     active
                       ? "bg-white text-orange-600"
+                      : disabled
+                      ? "bg-gray-200 text-gray-500"
                       : "bg-gradient-to-r from-orange-400 to-red-500 text-white animate-pulse"
                   }
                 `}
@@ -107,7 +144,7 @@ export default function SellerSidebar({ isMobileOpen = false, onClose }: SellerS
               )}
 
               {/* Hover indicator */}
-              {hovered && !active && (
+              {hovered && !active && !disabled && (
                 <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-gradient-to-b from-orange-400 to-red-500 rounded-r-full animate-fade-in" />
               )}
             </Link>

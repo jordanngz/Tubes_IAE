@@ -1,156 +1,245 @@
 "use client";
 
-import { useState } from "react";
-
-// Notifications & Activity data placeholder
-const notificationData = {
-  store_info: {
-    store_id: null,
-    store_name: "Nama Toko Placeholder",
-    unread_notifications: 5,
-    total_notifications: 120,
-    recent_activity_count: 25,
-    last_checked_at: "2025-11-01T00:00:00Z",
-  },
-  notifications: [
-    {
-      notification_id: null,
-      type: "order_created",
-      title: "Pesanan Baru Diterima",
-      message: "Kamu mendapatkan pesanan baru #ORD-PLACEHOLDER-001.",
-      related_order_id: null,
-      related_product_id: null,
-      status: "unread",
-      priority: "high",
-      icon: "🛒",
-      created_at: "2025-11-01T08:30:00Z",
-      read_at: null,
-    },
-    {
-      notification_id: null,
-      type: "product_review",
-      title: "Ulasan Baru untuk Produkmu",
-      message: "Pembeli memberikan ulasan bintang 5 untuk produk 'Sarden Pedas 350g'.",
-      related_order_id: null,
-      related_product_id: null,
-      status: "read",
-      priority: "medium",
-      icon: "⭐",
-      created_at: "2025-11-01T09:00:00Z",
-      read_at: "2025-11-01T09:15:00Z",
-    },
-    {
-      notification_id: null,
-      type: "promotion_approved",
-      title: "Promosi Telah Disetujui",
-      message: "Promosi 'Diskon Awal Bulan' telah disetujui oleh admin.",
-      related_order_id: null,
-      related_product_id: null,
-      status: "read",
-      priority: "low",
-      icon: "🎉",
-      created_at: "2025-10-31T12:00:00Z",
-      read_at: "2025-10-31T12:30:00Z",
-    },
-    {
-      notification_id: null,
-      type: "shipment_delivered",
-      title: "Pesanan Telah Diterima Pembeli",
-      message: "Pesanan #ORD-PLACEHOLDER-002 telah dikonfirmasi diterima oleh pembeli.",
-      related_order_id: null,
-      related_product_id: null,
-      status: "unread",
-      priority: "medium",
-      icon: "📦",
-      created_at: "2025-11-01T10:00:00Z",
-      read_at: null,
-    },
-  ],
-  activity_log: [
-    {
-      activity_id: null,
-      type: "create_product",
-      description: "Menambahkan produk baru 'Tuna Kaleng Original 200g'.",
-      related_product_id: null,
-      related_order_id: null,
-      timestamp: "2025-11-01T07:30:00Z",
-      ip_address: "192.168.1.10",
-      user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-      location: "Bandung, Indonesia",
-    },
-    {
-      activity_id: null,
-      type: "update_order_status",
-      description: "Mengubah status pesanan #ORD-PLACEHOLDER-001 menjadi 'Dikirim'.",
-      related_order_id: null,
-      timestamp: "2025-11-01T08:00:00Z",
-      ip_address: "192.168.1.10",
-      user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-      location: "Bandung, Indonesia",
-    },
-    {
-      activity_id: null,
-      type: "reply_review",
-      description: "Membalas ulasan pembeli untuk produk 'Sarden Pedas 350g'.",
-      related_product_id: null,
-      timestamp: "2025-11-01T09:00:00Z",
-      ip_address: "192.168.1.10",
-      user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-      location: "Bandung, Indonesia",
-    },
-    {
-      activity_id: null,
-      type: "login",
-      description: "Seller berhasil login ke dashboard seller.",
-      timestamp: "2025-11-01T07:00:00Z",
-      ip_address: "192.168.1.10",
-      user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-      location: "Bandung, Indonesia",
-    },
-  ],
-  activity_summary: {
-    total_activities: 250,
-    activities_today: 12,
-    most_common_action: "update_order_status",
-    recent_login_at: "2025-11-01T07:00:00Z",
-    active_sessions: 1,
-  },
-  system_alerts: [
-    {
-      alert_id: null,
-      level: "warning",
-      title: "Stok Menipis",
-      message: "Produk 'Sarden Pedas 350g' hanya tersisa 5 stok. Pertimbangkan untuk restok.",
-      related_product_id: null,
-      created_at: "2025-11-01T06:30:00Z",
-    },
-    {
-      alert_id: null,
-      level: "info",
-      title: "Pembaruan Sistem",
-      message: "Aplikasi seller akan diperbarui pada 2 November 2025 pukul 02:00 WIB.",
-      created_at: "2025-10-31T10:00:00Z",
-    },
-  ],
-  notification_settings: {
-    email_notifications: true,
-    push_notifications: true,
-    in_app_notifications: true,
-    preferences: {
-      order_updates: true,
-      product_reviews: true,
-      system_alerts: true,
-      promotions: false,
-    },
-    last_updated: "2025-10-30T12:00:00Z",
-  },
-};
+import { useEffect, useState } from "react";
+import { useAuth } from "@/lib/auth-context";
 
 export default function NotificationsPage() {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<"notifications" | "activity">("notifications");
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [filterPriority, setFilterPriority] = useState<string>("all");
   const [showSettings, setShowSettings] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [notificationData, setNotificationData] = useState<any>({
+    store_info: {
+      store_id: null,
+      store_name: "",
+      unread_notifications: 0,
+      total_notifications: 0,
+      recent_activity_count: 0,
+      last_checked_at: new Date().toISOString(),
+    },
+    notifications: [],
+    system_alerts: [],
+    notification_settings: {
+      email_notifications: true,
+      push_notifications: true,
+      in_app_notifications: true,
+      preferences: {
+        order_updates: true,
+        product_reviews: true,
+        system_alerts: true,
+        promotions: false,
+      },
+      last_updated: new Date().toISOString(),
+    },
+  });
+  const [activityData, setActivityData] = useState<any>({
+    activity_log: [],
+    activity_summary: {
+      total_activities: 0,
+      activities_today: 0,
+      most_common_action: "unknown",
+      recent_login_at: new Date().toISOString(),
+      active_sessions: 0,
+    },
+  });
+
+  // Fetch notifications
+  useEffect(() => {
+    let mounted = true;
+    async function loadNotifications() {
+      if (!user) return;
+      try {
+        setLoading(true);
+        const token = await user.getIdToken();
+        const params = new URLSearchParams({
+          status: filterStatus,
+          priority: filterPriority,
+        });
+        const res = await fetch(`/api/seller/notifications?${params.toString()}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!mounted) return;
+        if (res.ok) {
+          const data = await res.json();
+          setNotificationData(data);
+        }
+      } catch (e) {
+        console.error(e);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }
+    loadNotifications();
+    return () => {
+      mounted = false;
+    };
+  }, [user, filterStatus, filterPriority]);
+
+  // Fetch activities
+  useEffect(() => {
+    let mounted = true;
+    async function loadActivities() {
+      if (!user || activeTab !== "activity") return;
+      try {
+        const token = await user.getIdToken();
+        const res = await fetch(`/api/seller/activities`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!mounted) return;
+        if (res.ok) {
+          const data = await res.json();
+          setActivityData(data);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    loadActivities();
+    return () => {
+      mounted = false;
+    };
+  }, [user, activeTab]);
+
+  const handleMarkAllRead = async () => {
+    if (!user) return;
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/seller/notifications`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ action: "mark_all_read" }),
+      });
+      if (res.ok) {
+        // Reload notifications
+        const params = new URLSearchParams({
+          status: filterStatus,
+          priority: filterPriority,
+        });
+        const reloadRes = await fetch(`/api/seller/notifications?${params.toString()}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (reloadRes.ok) {
+          setNotificationData(await reloadRes.json());
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleMarkRead = async (notificationId: string) => {
+    if (!user) return;
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/seller/notifications/${notificationId}`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ action: "mark_read" }),
+      });
+      if (res.ok) {
+        // Update local state
+        setNotificationData((prev: any) => ({
+          ...prev,
+          notifications: prev.notifications.map((n: any) =>
+            n.notification_id === notificationId ? { ...n, status: "read", read_at: new Date().toISOString() } : n
+          ),
+          store_info: {
+            ...prev.store_info,
+            unread_notifications: Math.max(0, prev.store_info.unread_notifications - 1),
+          },
+        }));
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleDeleteNotification = async (notificationId: string) => {
+    if (!user) return;
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/seller/notifications/${notificationId}`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ action: "delete" }),
+      });
+      if (res.ok) {
+        // Remove from local state
+        setNotificationData((prev: any) => ({
+          ...prev,
+          notifications: prev.notifications.filter((n: any) => n.notification_id !== notificationId),
+          store_info: {
+            ...prev.store_info,
+            total_notifications: Math.max(0, prev.store_info.total_notifications - 1),
+          },
+        }));
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleDismissAlert = async (alertId: string) => {
+    if (!user) return;
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/seller/alerts/${alertId}`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ action: "dismiss" }),
+      });
+      if (res.ok) {
+        // Remove from local state
+        setNotificationData((prev: any) => ({
+          ...prev,
+          system_alerts: prev.system_alerts.filter((a: any) => a.alert_id !== alertId),
+        }));
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleSaveSettings = async () => {
+    if (!user) return;
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/seller/notifications/settings`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(notificationData.notification_settings),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setNotificationData((prev: any) => ({
+          ...prev,
+          notification_settings: data.notification_settings,
+        }));
+        setShowSettings(false);
+        alert("Pengaturan berhasil disimpan!");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Gagal menyimpan pengaturan");
+    }
+  };
 
   const getPriorityBadge = (priority: string) => {
     const styles: Record<string, string> = {
@@ -200,6 +289,16 @@ export default function NotificationsPage() {
 
   return (
     <div className="space-y-6">
+      {/* Loading State */}
+      {loading && (
+        <div className="flex items-center justify-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500"></div>
+        </div>
+      )}
+
+      {/* Main Content */}
+      {!loading && (
+        <>
       {/* Header */}
       <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
         <div>
@@ -210,7 +309,10 @@ export default function NotificationsPage() {
           <p className="text-amber-800 mt-1">Pantau notifikasi dan aktivitas akun seller Anda</p>
         </div>
         <div className="flex gap-2">
-          <button className="px-4 py-2 bg-white border-2 border-orange-300 text-amber-900 rounded-lg font-semibold text-sm hover:bg-orange-50 transition-colors flex items-center gap-2">
+          <button 
+            onClick={handleMarkAllRead}
+            className="px-4 py-2 bg-white border-2 border-orange-300 text-amber-900 rounded-lg font-semibold text-sm hover:bg-orange-50 transition-colors flex items-center gap-2"
+          >
             <span>✅</span>
             <span>Tandai Semua Dibaca</span>
           </button>
@@ -241,13 +343,13 @@ export default function NotificationsPage() {
           },
           {
             label: "Aktivitas Hari Ini",
-            value: notificationData.activity_summary.activities_today,
+            value: activityData.activity_summary.activities_today,
             icon: "⚡",
             color: "from-orange-400 to-red-500",
           },
           {
             label: "Sesi Aktif",
-            value: notificationData.activity_summary.active_sessions,
+            value: activityData.activity_summary.active_sessions,
             icon: "💻",
             color: "from-green-400 to-emerald-500",
           },
@@ -270,7 +372,7 @@ export default function NotificationsPage() {
       {/* System Alerts */}
       {notificationData.system_alerts.length > 0 && (
         <div className="space-y-3 animate-fade-in">
-          {notificationData.system_alerts.map((alert, idx) => (
+          {notificationData.system_alerts.map((alert: any, idx: number) => (
             <div
               key={idx}
               className={`p-4 border-2 rounded-xl flex items-start gap-3 ${
@@ -302,7 +404,10 @@ export default function NotificationsPage() {
                 <p className="text-sm text-amber-800">{alert.message}</p>
                 <p className="text-xs text-amber-700 mt-1">{getTimeAgo(alert.created_at)}</p>
               </div>
-              <button className="px-3 py-1.5 bg-white hover:bg-gray-50 border border-gray-300 rounded-lg text-sm font-medium transition-colors">
+              <button 
+                onClick={() => handleDismissAlert(alert.alert_id)}
+                className="px-3 py-1.5 bg-white hover:bg-gray-50 border border-gray-300 rounded-lg text-sm font-medium transition-colors"
+              >
                 ✖️
               </button>
             </div>
@@ -400,7 +505,7 @@ export default function NotificationsPage() {
 
           {/* Notifications List */}
           <div className="space-y-3">
-            {notificationData.notifications.map((notification, idx) => (
+            {notificationData.notifications.map((notification: any, idx: number) => (
               <div
                 key={idx}
                 className={`bg-white/80 backdrop-blur-xl border-2 rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden ${
@@ -467,14 +572,20 @@ export default function NotificationsPage() {
 
                         <div className="flex gap-2">
                           {notification.status === "unread" && (
-                            <button className="px-3 py-1.5 bg-green-500 text-white rounded-lg text-xs font-semibold hover:bg-green-600 transition-colors">
+                            <button 
+                              onClick={() => handleMarkRead(notification.notification_id)}
+                              className="px-3 py-1.5 bg-green-500 text-white rounded-lg text-xs font-semibold hover:bg-green-600 transition-colors"
+                            >
                               ✅ Tandai Dibaca
                             </button>
                           )}
                           <button className="px-3 py-1.5 bg-blue-500 text-white rounded-lg text-xs font-semibold hover:bg-blue-600 transition-colors">
                             👁️ Detail
                           </button>
-                          <button className="px-3 py-1.5 bg-orange-100 text-orange-700 rounded-lg text-xs font-semibold hover:bg-orange-200 transition-colors">
+                          <button 
+                            onClick={() => handleDeleteNotification(notification.notification_id)}
+                            className="px-3 py-1.5 bg-orange-100 text-orange-700 rounded-lg text-xs font-semibold hover:bg-orange-200 transition-colors"
+                          >
                             🗑️
                           </button>
                         </div>
@@ -498,21 +609,21 @@ export default function NotificationsPage() {
                 <div className="w-16 h-16 mx-auto mb-2 rounded-full bg-gradient-to-br from-blue-400 to-cyan-500 flex items-center justify-center text-white text-2xl">
                   📊
                 </div>
-                <p className="text-3xl font-bold text-blue-900">{notificationData.activity_summary.total_activities}</p>
+                <p className="text-3xl font-bold text-blue-900">{activityData.activity_summary.total_activities}</p>
                 <p className="text-sm text-blue-700">Total Aktivitas</p>
               </div>
               <div className="text-center">
                 <div className="w-16 h-16 mx-auto mb-2 rounded-full bg-gradient-to-br from-orange-400 to-red-500 flex items-center justify-center text-white text-2xl">
                   ⚡
                 </div>
-                <p className="text-3xl font-bold text-orange-900">{notificationData.activity_summary.activities_today}</p>
+                <p className="text-3xl font-bold text-orange-900">{activityData.activity_summary.activities_today}</p>
                 <p className="text-sm text-orange-700">Hari Ini</p>
               </div>
               <div className="text-center">
                 <div className="w-16 h-16 mx-auto mb-2 rounded-full bg-gradient-to-br from-green-400 to-emerald-500 flex items-center justify-center text-white text-2xl">
                   🔄
                 </div>
-                <p className="text-sm font-bold text-green-900">{notificationData.activity_summary.most_common_action}</p>
+                <p className="text-sm font-bold text-green-900">{activityData.activity_summary.most_common_action}</p>
                 <p className="text-sm text-green-700">Aksi Terbanyak</p>
               </div>
               <div className="text-center">
@@ -520,7 +631,7 @@ export default function NotificationsPage() {
                   🔐
                 </div>
                 <p className="text-sm font-bold text-purple-900">
-                  {new Date(notificationData.activity_summary.recent_login_at).toLocaleTimeString("id-ID", {
+                  {new Date(activityData.activity_summary.recent_login_at).toLocaleTimeString("id-ID", {
                     timeStyle: "short",
                   })}
                 </p>
@@ -537,14 +648,14 @@ export default function NotificationsPage() {
             </div>
 
             <div className="space-y-4">
-              {notificationData.activity_log.map((activity, idx) => (
+              {activityData.activity_log.map((activity: any, idx: number) => (
                 <div key={idx} className="flex items-start gap-4">
                   {/* Timeline Line */}
                   <div className="relative flex flex-col items-center">
                     <div className="w-12 h-12 rounded-full bg-gradient-to-br from-orange-400 to-red-500 flex items-center justify-center text-white text-xl font-bold shadow-lg z-10">
                       {getActivityIcon(activity.type)}
                     </div>
-                    {idx < notificationData.activity_log.length - 1 && (
+                    {idx < activityData.activity_log.length - 1 && (
                       <div className="w-0.5 h-full bg-gradient-to-b from-orange-300 to-amber-200 mt-2"></div>
                     )}
                   </div>
@@ -643,7 +754,22 @@ export default function NotificationsPage() {
                         <span className="font-semibold text-amber-900">{channel.label}</span>
                       </div>
                       <label className="relative inline-flex items-center cursor-pointer">
-                        <input type="checkbox" checked={channel.enabled} className="sr-only peer" readOnly />
+                        <input 
+                          type="checkbox" 
+                          checked={channel.enabled} 
+                          onChange={(e) => {
+                            const key = channel.id === "email" ? "email_notifications" : 
+                                       channel.id === "push" ? "push_notifications" : "in_app_notifications";
+                            setNotificationData((prev: any) => ({
+                              ...prev,
+                              notification_settings: {
+                                ...prev.notification_settings,
+                                [key]: e.target.checked,
+                              },
+                            }));
+                          }}
+                          className="sr-only peer" 
+                        />
                         <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-orange-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-orange-500 peer-checked:to-red-600"></div>
                       </label>
                     </div>
@@ -670,7 +796,23 @@ export default function NotificationsPage() {
                     >
                       <span className="font-semibold text-amber-900">{pref.label}</span>
                       <label className="relative inline-flex items-center cursor-pointer">
-                        <input type="checkbox" checked={pref.enabled} className="sr-only peer" readOnly />
+                        <input 
+                          type="checkbox" 
+                          checked={pref.enabled} 
+                          onChange={(e) => {
+                            setNotificationData((prev: any) => ({
+                              ...prev,
+                              notification_settings: {
+                                ...prev.notification_settings,
+                                preferences: {
+                                  ...prev.notification_settings.preferences,
+                                  [pref.id]: e.target.checked,
+                                },
+                              },
+                            }));
+                          }}
+                          className="sr-only peer" 
+                        />
                         <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-orange-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-orange-500 peer-checked:to-red-600"></div>
                       </label>
                     </div>
@@ -686,7 +828,10 @@ export default function NotificationsPage() {
                 >
                   Batal
                 </button>
-                <button className="px-6 py-3 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-lg font-semibold hover:shadow-lg transition-all">
+                <button 
+                  onClick={handleSaveSettings}
+                  className="px-6 py-3 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-lg font-semibold hover:shadow-lg transition-all"
+                >
                   💾 Simpan Pengaturan
                 </button>
               </div>
@@ -702,6 +847,8 @@ export default function NotificationsPage() {
             </div>
           </div>
         </div>
+      )}
+      </>
       )}
     </div>
   );

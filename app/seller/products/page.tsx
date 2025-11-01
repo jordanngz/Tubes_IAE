@@ -1,160 +1,43 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-
-// Product data placeholder
-const productData = {
-  store_info: {
-    store_id: null,
-    store_name: "Nama Toko Placeholder",
-    status: "approved",
-    total_products: 0,
-    total_sold: 0,
-    rating_avg: 0.0,
-  },
-  product_list: [
-    {
-      id: 1,
-      store_id: null,
-      name: "Sarden Pedas Premium 350g",
-      slug: "sarden-pedas-premium-350g",
-      sku: "SKU-SARDEN-001",
-      short_description: "Sarden pilihan dengan bumbu pedas khas Indonesia.",
-      description: "Ikan sarden berkualitas tinggi dengan bumbu pedas yang nikmat.",
-      price: 25000.0,
-      compare_at_price: 30000.0,
-      stock: 100,
-      sold_count: 45,
-      weight_grams: 350,
-      attributes: {
-        brand: "Premium Cans",
-        flavor: "Sarden Pedas",
-        size: "350g",
-      },
-      is_active: true,
-      is_published: true,
-      published_at: "2025-11-01T00:00:00Z",
-      rating_avg: 4.5,
-      rating_count: 12,
-      categories: ["Makanan Kaleng", "Seafood"],
-      images: ["/images/products/placeholder-1.jpg"],
-      promotions: [
-        {
-          name: "Diskon Awal Bulan",
-          type: "percentage",
-          value: 10.0,
-          is_active: true,
-        },
-      ],
-    },
-    {
-      id: 2,
-      store_id: null,
-      name: "Kornet Sapi Original 200g",
-      slug: "kornet-sapi-original-200g",
-      sku: "SKU-KORNET-001",
-      short_description: "Kornet sapi berkualitas tinggi.",
-      description: "Daging sapi pilihan yang diolah menjadi kornet lezat.",
-      price: 35000.0,
-      compare_at_price: 40000.0,
-      stock: 75,
-      sold_count: 32,
-      weight_grams: 200,
-      attributes: {
-        brand: "Premium Cans",
-        flavor: "Original",
-        size: "200g",
-      },
-      is_active: true,
-      is_published: true,
-      published_at: "2025-11-01T00:00:00Z",
-      rating_avg: 4.8,
-      rating_count: 18,
-      categories: ["Makanan Kaleng", "Daging"],
-      images: ["/images/products/placeholder-2.jpg"],
-      promotions: [],
-    },
-    {
-      id: 3,
-      store_id: null,
-      name: "Buah Kaleng Cocktail Mix 400g",
-      slug: "buah-kaleng-cocktail-mix-400g",
-      sku: "SKU-FRUIT-001",
-      short_description: "Campuran buah segar dalam kaleng.",
-      description: "Berbagai buah pilihan dalam sirup manis.",
-      price: 20000.0,
-      compare_at_price: null,
-      stock: 5,
-      sold_count: 89,
-      weight_grams: 400,
-      attributes: {
-        brand: "Fresh Cans",
-        flavor: "Mix Fruits",
-        size: "400g",
-      },
-      is_active: true,
-      is_published: true,
-      published_at: "2025-11-01T00:00:00Z",
-      rating_avg: 4.2,
-      rating_count: 25,
-      categories: ["Makanan Kaleng", "Buah"],
-      images: ["/images/products/placeholder-3.jpg"],
-      promotions: [],
-    },
-  ],
-  product_statistics: {
-    total_products: 10,
-    active_products: 8,
-    inactive_products: 2,
-    low_stock_products: 1,
-    out_of_stock_products: 0,
-    total_reviews: 24,
-    average_rating: 4.3,
-  },
-  product_reviews: [
-    {
-      id: 1,
-      rating: 5,
-      title: "Produk sangat bagus!",
-      body: "Kualitas ikan sarden sangat segar dan tidak amis.",
-      images: [],
-      is_visible: true,
-      reply: null,
-      created_at: "2025-11-01T00:00:00Z",
-    },
-    {
-      id: 2,
-      rating: 3,
-      title: "Rasa kurang pedas",
-      body: "Sesuai deskripsi tapi kurang sesuai selera saya.",
-      images: [],
-      is_visible: true,
-      reply: "Terima kasih atas sarannya! Kami akan tingkatkan rasa pedasnya.",
-      replied_at: "2025-11-01T02:00:00Z",
-    },
-  ],
-  activity_log: [
-    {
-      id: 1,
-      type: "create_product",
-      description: "Menambahkan produk baru 'Sarden Pedas 350g'.",
-      timestamp: "2025-11-01T00:10:00Z",
-    },
-    {
-      id: 2,
-      type: "update_stock",
-      description: "Mengubah stok produk 'Sarden Pedas 350g' dari 100 menjadi 80.",
-      timestamp: "2025-11-01T01:00:00Z",
-    },
-  ],
-};
+import { useAuth } from "@/lib/auth-context";
 
 export default function ProductManagementPage() {
+  const { user } = useAuth();
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [filterStatus, setFilterStatus] = useState<"all" | "active" | "inactive" | "low-stock">("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedProduct, setSelectedProduct] = useState<number | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [productData, setProductData] = useState<any | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    async function load() {
+      try {
+        if (!user) return;
+        const token = await user.getIdToken();
+        const res = await fetch("/api/seller/products", { headers: { Authorization: `Bearer ${token}` } });
+        if (!mounted) return;
+        if (!res.ok) {
+          setProductData(null);
+        } else {
+          const data = await res.json();
+          setProductData(data);
+        }
+      } catch (e) {
+        console.error(e);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }
+    load();
+    return () => {
+      mounted = false;
+    };
+  }, [user]);
 
   const getStockStatus = (stock: number) => {
     if (stock === 0) return { label: "Habis", color: "bg-red-100 text-red-700 border-red-300" };
@@ -174,6 +57,44 @@ export default function ProductManagementPage() {
     if (!comparePrice || comparePrice <= price) return null;
     return Math.round(((comparePrice - price) / comparePrice) * 100);
   };
+
+  const filteredProducts = useMemo(() => {
+    const list: any[] = productData?.product_list || [];
+    const q = searchQuery.trim().toLowerCase();
+    let items = list.filter((p) =>
+      !q ? true : p.name?.toLowerCase().includes(q) || p.sku?.toLowerCase().includes(q)
+    );
+    if (filterStatus === "active") items = items.filter((p) => p.is_active !== false);
+    if (filterStatus === "inactive") items = items.filter((p) => p.is_active === false);
+    if (filterStatus === "low-stock") items = items.filter((p) => p.stock > 0 && p.stock < 10);
+    return items;
+  }, [productData, searchQuery, filterStatus]);
+
+  if (!user) {
+    return (
+      <div className="p-6 bg-white/80 backdrop-blur-xl border-2 border-orange-200 rounded-2xl shadow-lg">
+        <p className="text-amber-900">Silakan masuk terlebih dahulu.</p>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <div className="h-10 w-1/3 bg-orange-100 rounded-lg animate-pulse" />
+        <div className="h-24 w-full bg-orange-50 border-2 border-orange-200 rounded-xl animate-pulse" />
+        <div className="h-96 w-full bg-orange-50 border-2 border-orange-200 rounded-xl animate-pulse" />
+      </div>
+    );
+  }
+
+  if (!productData) {
+    return (
+      <div className="p-6 bg-white/80 backdrop-blur-xl border-2 border-orange-200 rounded-2xl shadow-lg">
+        <p className="text-amber-900">Data produk tidak tersedia. Pastikan toko telah dibuat dan memiliki akses yang sesuai.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -343,7 +264,7 @@ export default function ProductManagementPage() {
           viewMode === "grid" ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3" : "grid-cols-1"
         }`}
       >
-        {productData.product_list.map((product) => {
+  {filteredProducts.map((product: any) => {
           const stockStatus = getStockStatus(product.stock);
           const discount = getDiscountPercentage(product.price, product.compare_at_price);
 
@@ -392,7 +313,7 @@ export default function ProductManagementPage() {
 
                 {/* Categories */}
                 <div className="flex flex-wrap gap-1 mb-3">
-                  {product.categories.map((cat, idx) => (
+                  {product.categories.map((cat: any, idx: number) => (
                     <span
                       key={idx}
                       className="px-2 py-0.5 bg-orange-100 text-orange-700 text-xs rounded-full font-semibold"
@@ -439,7 +360,7 @@ export default function ProductManagementPage() {
                     </button>
                   </Link>
                   <button
-                    onClick={() => setSelectedProduct(product.id)}
+                    onClick={() => setSelectedProduct(product.id as string)}
                     className="flex-1 px-3 py-2 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-lg font-semibold text-sm hover:shadow-lg transition-all duration-300"
                   >
                     👁️ Detail
@@ -459,7 +380,7 @@ export default function ProductManagementPage() {
         </div>
 
         <div className="space-y-4">
-          {productData.product_reviews.map((review) => (
+          {productData.product_reviews.map((review: any) => (
             <div key={review.id} className="p-4 bg-orange-50 rounded-xl border border-orange-200">
               <div className="flex items-start justify-between mb-2">
                 <div className="flex items-center gap-2">
@@ -509,7 +430,7 @@ export default function ProductManagementPage() {
         </div>
 
         <div className="space-y-3">
-          {productData.activity_log.map((activity) => (
+          {productData.activity_log.map((activity: any) => (
             <div
               key={activity.id}
               className="flex items-start gap-4 p-4 bg-orange-50 rounded-lg hover:bg-orange-100 transition-colors"

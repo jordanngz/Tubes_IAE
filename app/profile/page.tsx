@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Navbar from "@/components/navbar"
 import { User, Mail, Phone, Calendar, MapPin } from "lucide-react"
+import { auth } from "@/lib/firebase"
 import { Button } from "@/components/ui/button"
 import Swal from "sweetalert2"
 
@@ -62,6 +63,22 @@ export default function ProfilePage() {
     })
   }
 
+  const handleSellerToggle = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const toSeller = e.target.checked
+    if (!toSeller) return
+    try {
+      const token = await auth.currentUser?.getIdToken()
+      if (!token) return router.push("/login")
+      await fetch("/api/seller/role", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      router.push("/seller/stores")
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
   if (!isLoggedIn) return null
 
   return (
@@ -104,6 +121,10 @@ export default function ProfilePage() {
           <div className="mb-8">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-xl font-bold text-gray-900">Biodata Diri</h3>
+              <label className="flex items-center gap-2 mr-auto md:mr-0 md:ml-4">
+                <input type="checkbox" onChange={handleSellerToggle} className="w-5 h-5 accent-orange-600" />
+                <span className="text-sm font-semibold text-amber-900">Mode Penjual</span>
+              </label>
               {!isEditing ? (
                 <Button
                   onClick={() => setIsEditing(true)}

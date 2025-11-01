@@ -1,112 +1,38 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-
-// Review & Feedback data placeholder
-const reviewData = {
-  store_info: {
-    store_id: null,
-    store_name: "Nama Toko Placeholder",
-    total_reviews: 0,
-    average_rating: 0.0,
-    total_replied_reviews: 0,
-    total_unreplied_reviews: 0,
-  },
-  product_reviews: [
-    {
-      review_id: null,
-      product_id: null,
-      product_name: "Sarden Pedas 350g",
-      product_image: "/images/products/placeholder-1.jpg",
-      user_id: null,
-      user_name: "Nama Pembeli Placeholder",
-      rating: 5,
-      title: "Produk sangat enak!",
-      body: "Rasa sarden pedasnya pas dan tidak amis. Recommended banget!",
-      images: ["/images/reviews/review-photo-1.jpg"],
-      created_at: "2025-11-01T09:00:00Z",
-      is_visible: true,
-      reply: {
-        reply_id: null,
-        seller_id: null,
-        seller_name: "Nama Seller Placeholder",
-        message: "Terima kasih atas ulasannya! Kami senang produk kami disukai 😊",
-        replied_at: "2025-11-01T12:00:00Z",
-      },
-      helpful_count: 3,
-      reported: false,
-    },
-    {
-      review_id: null,
-      product_id: null,
-      product_name: "Tuna Kaleng Original 200g",
-      product_image: "/images/products/placeholder-2.jpg",
-      user_id: null,
-      user_name: "Nama Pembeli Placeholder 2",
-      rating: 3,
-      title: "Rasa kurang kuat",
-      body: "Produk oke tapi rasa tuna-nya kurang terasa kuat.",
-      images: [],
-      created_at: "2025-11-02T10:00:00Z",
-      is_visible: true,
-      reply: null,
-      helpful_count: 0,
-      reported: false,
-    },
-  ],
-  review_summary: {
-    total_reviews: 45,
-    average_rating: 4.4,
-    rating_distribution: {
-      "5_star": 30,
-      "4_star": 10,
-      "3_star": 4,
-      "2_star": 1,
-      "1_star": 0,
-    },
-    most_reviewed_products: [
-      {
-        product_id: null,
-        product_name: "Sarden Pedas 350g",
-        review_count: 20,
-        average_rating: 4.6,
-      },
-      {
-        product_id: null,
-        product_name: "Tuna Kaleng Original 200g",
-        review_count: 10,
-        average_rating: 4.2,
-      },
-    ],
-  },
-  activity_log: [
-    {
-      id: 1,
-      type: "reply_review",
-      description: "Seller membalas ulasan pada produk 'Sarden Pedas 350g'.",
-      timestamp: "2025-11-01T12:00:00Z",
-    },
-    {
-      id: 2,
-      type: "hide_review",
-      description: "Ulasan produk 'Tuna Kaleng Original 200g' disembunyikan karena laporan pembeli.",
-      timestamp: "2025-11-02T14:30:00Z",
-    },
-    {
-      id: 3,
-      type: "mark_review_visible",
-      description: "Ulasan sebelumnya diaktifkan kembali setelah verifikasi.",
-      timestamp: "2025-11-03T09:45:00Z",
-    },
-  ],
-};
+import { useAuth } from "@/lib/auth-context";
 
 export default function ReviewsPage() {
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<any | null>(null);
   const [filterRating, setFilterRating] = useState<number | "all">("all");
   const [filterReplied, setFilterReplied] = useState<string>("all");
-  const [showReplyForm, setShowReplyForm] = useState<number | null>(null);
+  const [showReplyForm, setShowReplyForm] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
+
+  useEffect(() => {
+    let mounted = true;
+    async function load() {
+      try {
+        if (!user) return;
+        const token = await user.getIdToken();
+        const res = await fetch("/api/seller/reviews", { headers: { Authorization: `Bearer ${token}` } });
+        if (!mounted) return;
+        if (res.ok) setData(await res.json());
+      } catch (e) {
+        console.error(e);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }
+    load();
+    return () => {
+      mounted = false;
+    };
+  }, [user]);
 
   const renderStars = (rating: number, size: "sm" | "md" | "lg" = "md") => {
     const sizeClasses = {
@@ -137,6 +63,118 @@ export default function ReviewsPage() {
     return "text-red-600";
   };
 
+  const reviews = useMemo(() => {
+    const items: any[] = data?.product_reviews || [];
+    return items
+      .filter((r) => (filterRating === "all" ? true : Number(r.rating) === filterRating))
+      .filter((r) => {
+        if (filterReplied === "all") return true;
+        if (filterReplied === "replied") return !!r.reply && !!r.reply.message;
+        if (filterReplied === "unreplied") return !r.reply || !r.reply.message;
+        return true;
+      });
+  }, [data, filterRating, filterReplied]);
+
+  const onSendReply = async (reviewId: string) => {
+    if (!user || !replyText.trim()) return;
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/seller/reviews/${reviewId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ reply_message: replyText.trim() }),
+      });
+      if (!res.ok) return;
+      const updated = await res.json();
+      setData((prev: any) => ({
+        ...prev,
+        product_reviews: (prev?.product_reviews || []).map((r: any) => (r.id === reviewId ? { ...r, ...updated } : r)),
+      }));
+      setShowReplyForm(null);
+      setReplyText("");
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const toggleVisibility = async (reviewId: string, nextVisible: boolean) => {
+    if (!user) return;
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/seller/reviews/${reviewId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ is_visible: nextVisible }),
+      });
+      if (!res.ok) return;
+      const updated = await res.json();
+      setData((prev: any) => ({
+        ...prev,
+        product_reviews: (prev?.product_reviews || []).map((r: any) => (r.id === reviewId ? { ...r, ...updated } : r)),
+      }));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const toggleReport = async (reviewId: string, nextReported: boolean) => {
+    if (!user) return;
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/seller/reviews/${reviewId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ reported: nextReported }),
+      });
+      if (!res.ok) return;
+      const updated = await res.json();
+      setData((prev: any) => ({
+        ...prev,
+        product_reviews: (prev?.product_reviews || []).map((r: any) => (r.id === reviewId ? { ...r, ...updated } : r)),
+      }));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const incrementHelpful = async (reviewId: string) => {
+    if (!user) return;
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/seller/reviews/${reviewId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ helpful_delta: 1 }),
+      });
+      if (!res.ok) return;
+      const updated = await res.json();
+      setData((prev: any) => ({
+        ...prev,
+        product_reviews: (prev?.product_reviews || []).map((r: any) => (r.id === reviewId ? { ...r, ...updated } : r)),
+      }));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const exportReviews = async () => {
+    if (!user) return;
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch("/api/seller/reviews/export", { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) return;
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `reviews_export.csv`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -149,7 +187,7 @@ export default function ReviewsPage() {
           <p className="text-amber-800 mt-1">Kelola dan balas ulasan dari pelanggan Anda</p>
         </div>
         <div className="flex gap-2">
-          <button className="px-4 py-2 bg-white border-2 border-orange-300 text-amber-900 rounded-lg font-semibold text-sm hover:bg-orange-50 transition-colors flex items-center gap-2">
+          <button onClick={exportReviews} className="px-4 py-2 bg-white border-2 border-orange-300 text-amber-900 rounded-lg font-semibold text-sm hover:bg-orange-50 transition-colors flex items-center gap-2">
             <span>📊</span>
             <span>Ekspor Ulasan</span>
           </button>
@@ -162,11 +200,11 @@ export default function ReviewsPage() {
           {/* Overall Rating */}
           <div className="text-center lg:border-r-2 lg:border-orange-200">
             <div className="inline-flex items-center justify-center w-24 h-24 rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 mb-3 shadow-lg">
-              <span className="text-4xl font-bold text-white">{reviewData.review_summary.average_rating}</span>
+              <span className="text-4xl font-bold text-white">{data?.review_summary?.average_rating || 0}</span>
             </div>
-            {renderStars(Math.round(reviewData.review_summary.average_rating), "lg")}
+            {renderStars(Math.round(data?.review_summary?.average_rating || 0), "lg")}
             <p className="text-amber-700 mt-2 font-semibold">
-              {reviewData.review_summary.total_reviews} Ulasan
+              {data?.review_summary?.total_reviews || 0} Ulasan
             </p>
           </div>
 
@@ -174,8 +212,9 @@ export default function ReviewsPage() {
           <div className="lg:col-span-2 space-y-2">
             <p className="font-bold text-amber-900 mb-3">Distribusi Rating</p>
             {[5, 4, 3, 2, 1].map((star) => {
-              const count = reviewData.review_summary.rating_distribution[`${star}_star` as keyof typeof reviewData.review_summary.rating_distribution];
-              const percentage = getRatingPercentage(count, reviewData.review_summary.total_reviews);
+              const count = data?.review_summary?.rating_distribution?.[`${star}_star`] || 0;
+              const total = data?.review_summary?.total_reviews || 0;
+              const percentage = total > 0 ? getRatingPercentage(count, total) : 0;
 
               return (
                 <div key={star} className="flex items-center gap-3">
@@ -203,25 +242,25 @@ export default function ReviewsPage() {
         {[
           {
             label: "Total Ulasan",
-            value: reviewData.review_summary.total_reviews,
+            value: data?.review_summary?.total_reviews || 0,
             icon: "💬",
             color: "from-blue-400 to-cyan-500",
           },
           {
             label: "Sudah Dibalas",
-            value: reviewData.store_info.total_replied_reviews,
+            value: data?.store_info?.total_replied_reviews || 0,
             icon: "✅",
             color: "from-green-400 to-emerald-500",
           },
           {
             label: "Belum Dibalas",
-            value: reviewData.store_info.total_unreplied_reviews,
+            value: data?.store_info?.total_unreplied_reviews || 0,
             icon: "⏳",
             color: "from-orange-400 to-red-500",
           },
           {
             label: "Rata-rata Rating",
-            value: reviewData.review_summary.average_rating.toFixed(1),
+            value: (data?.review_summary?.average_rating || 0).toFixed ? (data?.review_summary?.average_rating || 0).toFixed(1) : (data?.review_summary?.average_rating || 0),
             icon: "⭐",
             color: "from-yellow-400 to-orange-500",
           },
@@ -249,7 +288,7 @@ export default function ReviewsPage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {reviewData.review_summary.most_reviewed_products.map((product, idx) => (
+          {(data?.review_summary?.most_reviewed_products || []).map((product: any, idx: number) => (
             <div
               key={idx}
               className="p-4 bg-gradient-to-r from-orange-50 to-amber-50 border-2 border-orange-200 rounded-xl hover:shadow-md transition-all"
@@ -258,8 +297,8 @@ export default function ReviewsPage() {
                 <div className="flex-1">
                   <p className="font-bold text-amber-900">{product.product_name}</p>
                   <div className="flex items-center gap-2 mt-2">
-                    {renderStars(Math.round(product.average_rating), "sm")}
-                    <span className={`font-bold ${getRatingColor(product.average_rating)}`}>
+                    {renderStars(Math.round(product.average_rating || 0), "sm")}
+                    <span className={`font-bold ${getRatingColor(product.average_rating || 0)}`}>
                       {product.average_rating}
                     </span>
                   </div>
@@ -330,9 +369,22 @@ export default function ReviewsPage() {
         </div>
       </div>
 
+      {/* Loading or Not logged in */}
+      {!user ? (
+        <div className="p-6 bg-white/80 backdrop-blur-xl border-2 border-orange-200 rounded-2xl shadow-lg">
+          <p className="text-amber-900">Silakan masuk terlebih dahulu.</p>
+        </div>
+      ) : loading ? (
+        <div className="space-y-4">
+          <div className="h-10 w-1/3 bg-orange-100 rounded-lg animate-pulse" />
+          <div className="h-24 w-full bg-orange-50 border-2 border-orange-200 rounded-xl animate-pulse" />
+          <div className="h-96 w-full bg-orange-50 border-2 border-orange-200 rounded-xl animate-pulse" />
+        </div>
+      ) : null}
+
       {/* Reviews List */}
       <div className="space-y-4 animate-fade-in">
-        {reviewData.product_reviews.map((review, idx) => (
+        {reviews.map((review: any, idx: number) => (
           <div
             key={idx}
             className="bg-white/80 backdrop-blur-xl border-2 border-orange-200 rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden"
@@ -342,13 +394,13 @@ export default function ReviewsPage() {
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 rounded-full bg-gradient-to-br from-orange-400 to-red-500 flex items-center justify-center text-white text-xl font-bold shadow-lg">
-                    {review.user_name.charAt(0).toUpperCase()}
+                    {(review.user_name || "?").charAt(0).toUpperCase()}
                   </div>
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="font-bold text-amber-900">{review.user_name}</p>
-                      {renderStars(review.rating, "sm")}
-                      {!review.reply && (
+                      {renderStars(Number(review.rating || 0), "sm")}
+                      {(!review.reply || !review.reply.message) && (
                         <span className="px-2 py-0.5 bg-orange-200 text-orange-800 rounded-full text-xs font-bold">
                           Belum Dibalas
                         </span>
@@ -387,7 +439,7 @@ export default function ReviewsPage() {
               {/* Review Images */}
               {review.images && review.images.length > 0 && (
                 <div className="flex gap-2 overflow-x-auto pb-2">
-                  {review.images.map((image, imgIdx) => (
+                  {review.images.map((image: string, imgIdx: number) => (
                     <div
                       key={imgIdx}
                       className="w-24 h-24 bg-gradient-to-br from-orange-200 to-amber-200 rounded-lg flex items-center justify-center text-3xl shrink-0 border-2 border-orange-300 hover:scale-105 transition-transform cursor-pointer"
@@ -400,9 +452,9 @@ export default function ReviewsPage() {
 
               {/* Helpful Count */}
               <div className="flex items-center gap-4 text-sm">
-                <button className="flex items-center gap-2 px-3 py-1.5 bg-orange-50 hover:bg-orange-100 rounded-lg text-amber-900 font-medium transition-colors">
+                <button onClick={() => incrementHelpful(review.id)} className="flex items-center gap-2 px-3 py-1.5 bg-orange-50 hover:bg-orange-100 rounded-lg text-amber-900 font-medium transition-colors">
                   <span>👍</span>
-                  <span>{review.helpful_count} orang terbantu</span>
+                  <span>{review.helpful_count || 0} orang terbantu</span>
                 </button>
                 {review.reported && (
                   <span className="px-3 py-1.5 bg-red-100 text-red-700 rounded-lg text-xs font-bold border border-red-300">
@@ -412,7 +464,7 @@ export default function ReviewsPage() {
               </div>
 
               {/* Seller Reply */}
-              {review.reply ? (
+              {review.reply && review.reply.message ? (
                 <div className="p-4 bg-gradient-to-r from-blue-50 to-cyan-50 border-2 border-blue-200 rounded-xl">
                   <div className="flex items-start gap-3">
                     <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-cyan-500 flex items-center justify-center text-white font-bold shrink-0">
@@ -420,7 +472,7 @@ export default function ReviewsPage() {
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
-                        <p className="font-bold text-blue-900">{review.reply.seller_name}</p>
+                        <p className="font-bold text-blue-900">{review.reply.seller_name || "Seller"}</p>
                         <span className="px-2 py-0.5 bg-blue-200 text-blue-800 rounded text-xs font-bold">
                           Seller
                         </span>
@@ -438,7 +490,7 @@ export default function ReviewsPage() {
               ) : (
                 <>
                   {/* Reply Form */}
-                  {showReplyForm === idx ? (
+                  {showReplyForm === review.id ? (
                     <div className="p-4 bg-gradient-to-r from-orange-50 to-amber-50 border-2 border-orange-200 rounded-xl">
                       <p className="font-bold text-amber-900 mb-3">💬 Balas Ulasan</p>
                       <textarea
@@ -448,7 +500,7 @@ export default function ReviewsPage() {
                         className="w-full h-24 p-3 bg-white border-2 border-orange-200 rounded-lg text-amber-900 placeholder-amber-600 focus:outline-none focus:ring-2 focus:ring-orange-400 resize-none"
                       />
                       <div className="flex gap-2 mt-3">
-                        <button className="px-4 py-2 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-lg font-semibold text-sm hover:shadow-lg transition-all">
+                        <button onClick={() => onSendReply(review.id)} className="px-4 py-2 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-lg font-semibold text-sm hover:shadow-lg transition-all">
                           📤 Kirim Balasan
                         </button>
                         <button
@@ -468,37 +520,37 @@ export default function ReviewsPage() {
 
               {/* Actions */}
               <div className="flex flex-wrap gap-2 pt-2 border-t border-orange-200">
-                {!review.reply && !showReplyForm && (
+                {(!review.reply || !review.reply.message) && showReplyForm !== review.id && (
                   <button
-                    onClick={() => setShowReplyForm(idx)}
+                    onClick={() => { setShowReplyForm(review.id); setReplyText(""); }}
                     className="px-4 py-2 bg-blue-500 text-white rounded-lg font-semibold text-sm hover:bg-blue-600 transition-colors flex items-center gap-2"
                   >
                     <span>💬</span>
                     <span>Balas Ulasan</span>
                   </button>
                 )}
-                {review.reply && (
-                  <button className="px-4 py-2 bg-purple-500 text-white rounded-lg font-semibold text-sm hover:bg-purple-600 transition-colors flex items-center gap-2">
+                {review.reply && review.reply.message && (
+                  <button onClick={() => { setShowReplyForm(review.id); setReplyText(review.reply.message || ""); }} className="px-4 py-2 bg-purple-500 text-white rounded-lg font-semibold text-sm hover:bg-purple-600 transition-colors flex items-center gap-2">
                     <span>✏️</span>
                     <span>Edit Balasan</span>
                   </button>
                 )}
-                <button className="px-4 py-2 bg-orange-100 text-orange-700 rounded-lg font-semibold text-sm hover:bg-orange-200 transition-colors flex items-center gap-2">
+                <Link href={`/seller/products`} className="px-4 py-2 bg-orange-100 text-orange-700 rounded-lg font-semibold text-sm hover:bg-orange-200 transition-colors flex items-center gap-2">
                   <span>🔗</span>
                   <span>Lihat Produk</span>
-                </button>
+                </Link>
                 {review.is_visible ? (
-                  <button className="px-4 py-2 bg-red-100 text-red-700 rounded-lg font-semibold text-sm hover:bg-red-200 transition-colors flex items-center gap-2">
+                  <button onClick={() => toggleVisibility(review.id, false)} className="px-4 py-2 bg-red-100 text-red-700 rounded-lg font-semibold text-sm hover:bg-red-200 transition-colors flex items-center gap-2">
                     <span>👁️‍🗨️</span>
                     <span>Sembunyikan</span>
                   </button>
                 ) : (
-                  <button className="px-4 py-2 bg-green-100 text-green-700 rounded-lg font-semibold text-sm hover:bg-green-200 transition-colors flex items-center gap-2">
+                  <button onClick={() => toggleVisibility(review.id, true)} className="px-4 py-2 bg-green-100 text-green-700 rounded-lg font-semibold text-sm hover:bg-green-200 transition-colors flex items-center gap-2">
                     <span>👁️</span>
                     <span>Tampilkan</span>
                   </button>
                 )}
-                <button className="px-4 py-2 bg-orange-100 text-orange-700 rounded-lg font-semibold text-sm hover:bg-orange-200 transition-colors flex items-center gap-2">
+                <button onClick={() => toggleReport(review.id, !review.reported)} className="px-4 py-2 bg-orange-100 text-orange-700 rounded-lg font-semibold text-sm hover:bg-orange-200 transition-colors flex items-center gap-2">
                   <span>⚠️</span>
                   <span>Laporkan</span>
                 </button>
@@ -516,7 +568,7 @@ export default function ReviewsPage() {
         </div>
 
         <div className="space-y-3">
-          {reviewData.activity_log.map((activity) => (
+          {(data?.activity_log || []).map((activity: any) => (
             <div
               key={activity.id}
               className="flex items-start gap-4 p-4 bg-orange-50 rounded-lg hover:bg-orange-100 transition-colors"

@@ -1,165 +1,79 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-
-// Shipment data placeholder
-const shipmentData = {
-  store_info: {
-    store_id: null,
-    store_name: "Nama Toko Placeholder",
-    total_shipments: 0,
-    active_shipments: 0,
-    delivered_shipments: 0,
-    returned_shipments: 0,
-  },
-  shipments: [
-    {
-      shipment_id: null,
-      order_shop_id: null,
-      order_id: null,
-      order_number: "ORD-PLACEHOLDER-001",
-      buyer_name: "Nama Pembeli Placeholder",
-      buyer_contact: "+62-812-0000-0000",
-      carrier_name: "JNE",
-      service_code: "REG",
-      tracking_number: "TRK1234567890",
-      status: "in_transit",
-      cost: 10000.0,
-      shipped_at: "2025-11-01T08:00:00Z",
-      delivered_at: null,
-      address_from: {
-        store_name: "Toko Placeholder",
-        address_line1: "Jl. Raya Kaleng No. 45",
-        city: "Bandung",
-        state: "Jawa Barat",
-        postal_code: "40211",
-        country: "ID",
-      },
-      address_to: {
-        recipient_name: "Nama Pembeli Placeholder",
-        address_line1: "Jl. Contoh No. 123",
-        city: "Jakarta",
-        state: "DKI Jakarta",
-        postal_code: "12345",
-        country: "ID",
-      },
-      events: [
-        {
-          event_id: 1,
-          status: "created",
-          location: "Bandung Hub",
-          description: "Label pengiriman dibuat.",
-          occurred_at: "2025-11-01T07:50:00Z",
-        },
-        {
-          event_id: 2,
-          status: "picked_up",
-          location: "Bandung Hub",
-          description: "Paket diambil oleh kurir JNE.",
-          occurred_at: "2025-11-01T08:10:00Z",
-        },
-        {
-          event_id: 3,
-          status: "in_transit",
-          location: "Jakarta Sorting Center",
-          description: "Paket sedang dalam perjalanan ke tujuan.",
-          occurred_at: "2025-11-01T13:00:00Z",
-        },
-      ],
-      estimated_delivery: {
-        min_date: "2025-11-03T00:00:00Z",
-        max_date: "2025-11-05T00:00:00Z",
-      },
-      notes: {
-        buyer_notes: "Mohon kirim dengan hati-hati.",
-        seller_notes: "Dikemas rapi dan siap dikirim.",
-      },
-      actions: {
-        update_status: true,
-        mark_as_delivered: true,
-        mark_as_returned: false,
-        print_shipping_label: true,
-      },
-    },
-  ],
-  shipment_summary: {
-    total_shipments: 15,
-    created: 3,
-    picked_up: 4,
-    in_transit: 5,
-    delivered: 2,
-    failed: 0,
-    returned: 1,
-    total_shipping_cost: 125000.0,
-  },
-  courier_settings: {
-    available_carriers: [
-      {
-        name: "JNE",
-        services: ["REG", "YES"],
-        is_active: true,
-      },
-      {
-        name: "POS Indonesia",
-        services: ["Kilat", "Express"],
-        is_active: false,
-      },
-      {
-        name: "SiCepat",
-        services: ["Regular", "Best"],
-        is_active: true,
-      },
-    ],
-    default_carrier: "JNE",
-    auto_sync_with_api: true,
-    last_sync_at: "2025-11-01T09:00:00Z",
-  },
-  tracking_overview: [
-    {
-      shipment_id: null,
-      tracking_number: "TRK1234567890",
-      status: "in_transit",
-      last_update: "2025-11-01T13:00:00Z",
-      current_location: "Jakarta Sorting Center",
-      progress_percent: 60,
-    },
-    {
-      shipment_id: null,
-      tracking_number: "TRK1234567891",
-      status: "delivered",
-      last_update: "2025-11-01T14:30:00Z",
-      current_location: "Jakarta - Penerima",
-      progress_percent: 100,
-    },
-  ],
-  activity_log: [
-    {
-      id: 1,
-      type: "create_shipment",
-      description: "Pengiriman baru dibuat untuk pesanan ORD-PLACEHOLDER-001 via JNE REG.",
-      timestamp: "2025-11-01T07:50:00Z",
-    },
-    {
-      id: 2,
-      type: "update_tracking",
-      description: "Status pengiriman ORD-PLACEHOLDER-001 diperbarui ke 'in_transit'.",
-      timestamp: "2025-11-01T13:00:00Z",
-    },
-    {
-      id: 3,
-      type: "mark_delivered",
-      description: "Pesanan ORD-PLACEHOLDER-002 ditandai telah diterima oleh pembeli.",
-      timestamp: "2025-11-01T14:30:00Z",
-    },
-  ],
-};
+import { useAuth } from "@/lib/auth-context";
 
 export default function ShipmentManagementPage() {
+  const { user } = useAuth();
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedShipment, setSelectedShipment] = useState<number | null>(null);
+  const [selectedShipment, setSelectedShipment] = useState<string | null>(null);
   const [showCourierSettings, setShowCourierSettings] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [shipmentData, setShipmentData] = useState<any | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    async function load() {
+      try {
+        if (!user) return;
+        const token = await user.getIdToken();
+        const res = await fetch("/api/seller/shipments", { headers: { Authorization: `Bearer ${token}` } });
+        if (!mounted) return;
+        if (!res.ok) {
+          setShipmentData(null);
+        } else {
+          const data = await res.json();
+          setShipmentData(data);
+        }
+      } catch (e) {
+        console.error(e);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }
+    load();
+    return () => {
+      mounted = false;
+    };
+  }, [user]);
+
+  const filteredShipments = useMemo(() => {
+    const list: any[] = shipmentData?.shipments || [];
+    const q = searchQuery.trim().toLowerCase();
+    let items = list.filter((s) =>
+      !q
+        ? true
+        : s.tracking_number?.toLowerCase().includes(q) || s.order_number?.toLowerCase().includes(q)
+    );
+    if (filterStatus !== "all") items = items.filter((s) => s.status === filterStatus);
+    return items;
+  }, [shipmentData, searchQuery, filterStatus]);
+
+  const updateShipment = async (id: string, payload: any) => {
+    if (!user) return;
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/seller/shipments/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) return;
+      const updated = await res.json();
+      setShipmentData((prev: any) => ({
+        ...prev,
+        shipments: (prev?.shipments || []).map((s: any) => (s.id === id ? { ...s, ...updated } : s)),
+      }));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const markInTransit = (id: string) => updateShipment(id, { status: "in_transit", add_event: { status: "in_transit" } });
+  const markDelivered = (id: string) => updateShipment(id, { status: "delivered", add_event: { status: "delivered" } });
+  const markReturned = (id: string) => updateShipment(id, { status: "returned", add_event: { status: "returned" } });
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("id-ID", {
@@ -205,6 +119,32 @@ export default function ShipmentManagementPage() {
     return labels[status] || status;
   };
 
+  if (!user) {
+    return (
+      <div className="p-6 bg-white/80 backdrop-blur-xl border-2 border-orange-200 rounded-2xl shadow-lg">
+        <p className="text-amber-900">Silakan masuk terlebih dahulu.</p>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <div className="h-10 w-1/3 bg-orange-100 rounded-lg animate-pulse" />
+        <div className="h-24 w-full bg-orange-50 border-2 border-orange-200 rounded-xl animate-pulse" />
+        <div className="h-96 w-full bg-orange-50 border-2 border-orange-200 rounded-xl animate-pulse" />
+      </div>
+    );
+  }
+
+  if (!shipmentData) {
+    return (
+      <div className="p-6 bg-white/80 backdrop-blur-xl border-2 border-orange-200 rounded-2xl shadow-lg">
+        <p className="text-amber-900">Data pengiriman tidak tersedia. Pastikan toko telah dibuat.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -232,7 +172,7 @@ export default function ShipmentManagementPage() {
       </div>
 
       {/* Statistics Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 animate-fade-in">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 animate-fade-in">
         {[
           {
             label: "Total Pengiriman",
@@ -345,8 +285,8 @@ export default function ShipmentManagementPage() {
                 defaultValue={shipmentData.courier_settings.default_carrier}
               >
                 {shipmentData.courier_settings.available_carriers
-                  .filter((c) => c.is_active)
-                  .map((carrier) => (
+                  .filter((c: any) => c.is_active)
+                  .map((carrier: any) => (
                     <option key={carrier.name} value={carrier.name}>
                       {carrier.name}
                     </option>
@@ -358,7 +298,7 @@ export default function ShipmentManagementPage() {
             <div>
               <p className="font-semibold text-amber-900 mb-3">Kurir yang Tersedia</p>
               <div className="space-y-2">
-                {shipmentData.courier_settings.available_carriers.map((carrier) => (
+                {shipmentData.courier_settings.available_carriers.map((carrier: any) => (
                   <div
                     key={carrier.name}
                     className="flex items-center justify-between p-4 bg-orange-50 rounded-lg hover:bg-orange-100 transition-colors"
@@ -371,7 +311,7 @@ export default function ShipmentManagementPage() {
                         <div>
                           <p className="font-semibold text-amber-900">{carrier.name}</p>
                           <div className="flex gap-1 mt-1">
-                            {carrier.services.map((service) => (
+                            {carrier.services.map((service: any) => (
                               <span
                                 key={service}
                                 className="px-2 py-0.5 bg-orange-200 text-orange-800 rounded text-xs font-medium"
@@ -410,7 +350,7 @@ export default function ShipmentManagementPage() {
         </div>
 
         <div className="space-y-3">
-          {shipmentData.tracking_overview.map((tracking, idx) => (
+          {shipmentData.tracking_overview.map((tracking: any, idx: number) => (
             <div
               key={idx}
               className="p-4 bg-gradient-to-r from-orange-50 to-amber-50 border-2 border-orange-200 rounded-xl hover:shadow-md transition-all"
@@ -507,7 +447,7 @@ export default function ShipmentManagementPage() {
 
       {/* Shipments List */}
       <div className="space-y-4 animate-fade-in">
-        {shipmentData.shipments.map((shipment, idx) => (
+        {filteredShipments.map((shipment: any, idx: number) => (
           <div
             key={idx}
             className="bg-white/80 backdrop-blur-xl border-2 border-orange-200 rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden"
@@ -555,11 +495,11 @@ export default function ShipmentManagementPage() {
                   </div>
                   <div className="space-y-1 text-sm text-amber-800">
                     <p>
-                      <strong>{shipment.address_from.store_name}</strong>
+                      <strong>{shipment.address_from?.store_name}</strong>
                     </p>
-                    <p>{shipment.address_from.address_line1}</p>
+                    <p>{shipment.address_from?.address_line1}</p>
                     <p>
-                      {shipment.address_from.city}, {shipment.address_from.state} {shipment.address_from.postal_code}
+                      {shipment.address_from?.city}, {shipment.address_from?.state} {shipment.address_from?.postal_code}
                     </p>
                   </div>
                 </div>
@@ -572,12 +512,12 @@ export default function ShipmentManagementPage() {
                   </div>
                   <div className="space-y-1 text-sm text-amber-800">
                     <p>
-                      <strong>{shipment.address_to.recipient_name}</strong>
+                      <strong>{shipment.address_to?.recipient_name}</strong>
                     </p>
                     <p>{shipment.buyer_contact}</p>
-                    <p>{shipment.address_to.address_line1}</p>
+                    <p>{shipment.address_to?.address_line1}</p>
                     <p>
-                      {shipment.address_to.city}, {shipment.address_to.state} {shipment.address_to.postal_code}
+                      {shipment.address_to?.city}, {shipment.address_to?.state} {shipment.address_to?.postal_code}
                     </p>
                   </div>
                 </div>
@@ -591,8 +531,8 @@ export default function ShipmentManagementPage() {
                 </div>
 
                 <div className="space-y-3">
-                  {shipment.events.map((event, eventIdx) => (
-                    <div key={event.event_id} className="flex items-start gap-3">
+                  {Array.isArray(shipment.events) && shipment.events.map((event: any, eventIdx: number) => (
+                    <div key={event.event_id || eventIdx} className="flex items-start gap-3">
                       <div className="relative flex flex-col items-center">
                         <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-cyan-500 text-white flex items-center justify-center text-lg font-bold shadow-md z-10">
                           {getStatusIcon(event.status)}
@@ -641,24 +581,24 @@ export default function ShipmentManagementPage() {
               </div>
 
               {/* Notes */}
-              {(shipment.notes.buyer_notes || shipment.notes.seller_notes) && (
+              {(shipment.notes?.buyer_notes || shipment.notes?.seller_notes) && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {shipment.notes.buyer_notes && (
+                  {shipment.notes?.buyer_notes && (
                     <div className="p-3 bg-orange-50 rounded-lg">
                       <p className="font-semibold text-amber-900 mb-1 flex items-center gap-2">
                         <span>📝</span>
                         <span>Catatan Pembeli</span>
                       </p>
-                      <p className="text-sm text-amber-800">{shipment.notes.buyer_notes}</p>
+                      <p className="text-sm text-amber-800">{shipment.notes?.buyer_notes}</p>
                     </div>
                   )}
-                  {shipment.notes.seller_notes && (
+                  {shipment.notes?.seller_notes && (
                     <div className="p-3 bg-orange-50 rounded-lg">
                       <p className="font-semibold text-amber-900 mb-1 flex items-center gap-2">
                         <span>📝</span>
                         <span>Catatan Seller</span>
                       </p>
-                      <p className="text-sm text-amber-800">{shipment.notes.seller_notes}</p>
+                      <p className="text-sm text-amber-800">{shipment.notes?.seller_notes}</p>
                     </div>
                   )}
                 </div>
@@ -666,30 +606,26 @@ export default function ShipmentManagementPage() {
 
               {/* Actions */}
               <div className="flex flex-wrap gap-2 pt-2 border-t border-orange-200">
-                {shipment.actions.update_status && (
-                  <button className="px-4 py-2 bg-blue-500 text-white rounded-lg font-semibold text-sm hover:bg-blue-600 transition-colors flex items-center gap-2">
+                <button onClick={() => markInTransit(shipment.id)} className="px-4 py-2 bg-blue-500 text-white rounded-lg font-semibold text-sm hover:bg-blue-600 transition-colors flex items-center gap-2">
                     <span>🔄</span>
                     <span>Update Status</span>
                   </button>
-                )}
-                {shipment.actions.mark_as_delivered && (
-                  <button className="px-4 py-2 bg-green-500 text-white rounded-lg font-semibold text-sm hover:bg-green-600 transition-colors flex items-center gap-2">
+                {shipment.status !== "delivered" && shipment.status !== "returned" && (
+                  <button onClick={() => markDelivered(shipment.id)} className="px-4 py-2 bg-green-500 text-white rounded-lg font-semibold text-sm hover:bg-green-600 transition-colors flex items-center gap-2">
                     <span>✅</span>
                     <span>Tandai Terkirim</span>
                   </button>
                 )}
-                {shipment.actions.mark_as_returned && (
-                  <button className="px-4 py-2 bg-orange-500 text-white rounded-lg font-semibold text-sm hover:bg-orange-600 transition-colors flex items-center gap-2">
+                {shipment.status !== "delivered" && shipment.status !== "returned" && (
+                  <button onClick={() => markReturned(shipment.id)} className="px-4 py-2 bg-orange-500 text-white rounded-lg font-semibold text-sm hover:bg-orange-600 transition-colors flex items-center gap-2">
                     <span>↩️</span>
                     <span>Tandai Dikembalikan</span>
                   </button>
                 )}
-                {shipment.actions.print_shipping_label && (
-                  <button className="px-4 py-2 bg-purple-500 text-white rounded-lg font-semibold text-sm hover:bg-purple-600 transition-colors flex items-center gap-2">
+                <button className="px-4 py-2 bg-purple-500 text-white rounded-lg font-semibold text-sm hover:bg-purple-600 transition-colors flex items-center gap-2">
                     <span>🖨️</span>
                     <span>Cetak Label</span>
                   </button>
-                )}
                 <button className="px-4 py-2 bg-orange-100 text-orange-700 rounded-lg font-semibold text-sm hover:bg-orange-200 transition-colors flex items-center gap-2">
                   <span>📋</span>
                   <span>Detail Pesanan</span>
@@ -712,7 +648,7 @@ export default function ShipmentManagementPage() {
         </div>
 
         <div className="space-y-3">
-          {shipmentData.activity_log.map((activity) => (
+          {shipmentData.activity_log.map((activity: any) => (
             <div
               key={activity.id}
               className="flex items-start gap-4 p-4 bg-orange-50 rounded-lg hover:bg-orange-100 transition-colors"
