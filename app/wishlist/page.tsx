@@ -7,6 +7,7 @@ import Navbar from "@/components/navbar"
 import { useCart } from "@/lib/cart-context"
 import { Heart, ShoppingCart, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import Swal from "sweetalert2"
 
 export default function WishlistPage() {
   const router = useRouter()
@@ -14,7 +15,13 @@ export default function WishlistPage() {
 
   const handleAddToCart = (product: any) => {
     addToCart(product, 1, {})
-    alert("Produk ditambahkan ke keranjang!")
+    Swal.fire({
+      icon: "success",
+      title: "Berhasil Ditambahkan",
+      text: `"${product.name}" telah ditambahkan ke keranjang Anda.`,
+      timer: 1500,
+      showConfirmButton: false,
+    })
   }
 
   return (

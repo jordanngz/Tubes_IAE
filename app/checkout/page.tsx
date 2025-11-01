@@ -7,6 +7,7 @@ import Navbar from "@/components/navbar"
 import { useCart } from "@/lib/cart-context"
 import { MapPin, Package, CreditCard } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import Swal from "sweetalert2"
 
 interface ShippingCost {
   service: string
@@ -58,7 +59,11 @@ export default function CheckoutPage() {
 
   const handlePayment = () => {
     if (!shippingAddress.name || !shippingAddress.phone || !shippingAddress.address || !selectedPayment) {
-      alert("Mohon lengkapi semua data")
+      Swal.fire({
+        icon: "warning",
+        title: "Data tidak lengkap",
+        text: "Silakan lengkapi semua data pengiriman dan metode pembayaran sebelum melanjutkan.",
+      })
       return
     }
 
@@ -72,7 +77,11 @@ export default function CheckoutPage() {
       status: "processing",
     })
 
-    alert("Pembayaran berhasil! Terima kasih telah berbelanja.")
+    Swal.fire({
+      icon: "success",
+      title: "Pesanan Berhasil",
+      text: "Pesanan Anda telah berhasil dibuat. Terima kasih telah berbelanja di Canned It!",
+    })
     clearCart()
     router.push("/orders")
   }
